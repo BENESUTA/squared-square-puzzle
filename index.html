@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>正方形の正方形パズル</title>
+<meta name="description" content="大きさの違う正方形で大きな正方形を埋める「完全正方形分割」のブラウザパズル。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF1F2; --ink:#1A2A31; --mute:#55666D; --panel:#E0E7E9;
+  --board:#F8FAFA; --grid:rgba(26,42,49,.16); --frame:#1A2A31;
+  --ok:#2E9E6B; --bad:#D6483E; --btn:#1A2A31; --btnink:#F2F6F7; --tileink:#1A2A31;
+  --sheet:#F6F9F9; --line:rgba(26,42,49,.16);
+  --lw:1px;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#101619; --ink:#E4ECEE; --mute:#8FA0A7; --panel:#182126;
+    --board:#0B1013; --grid:rgba(228,236,238,.17); --frame:#3B4C54;
+    --btn:#E4ECEE; --btnink:#101619; --sheet:#141C20; --line:rgba(228,236,238,.16);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101619; --ink:#E4ECEE; --mute:#8FA0A7; --panel:#182126;
+  --board:#0B1013; --grid:rgba(228,236,238,.17); --frame:#3B4C54;
+  --btn:#E4ECEE; --btnink:#101619; --sheet:#141C20; --line:rgba(228,236,238,.16);
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*,*::before,*::after{box-sizing:border-box}
+body{
+  margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font-family:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  font-weight:500;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  overflow:hidden;
+}
+.app{height:100%;display:flex;flex-direction:column;gap:10px;padding:12px;max-width:1240px;margin:0 auto}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{margin:0;font-size:24px;font-weight:900;letter-spacing:.04em;line-height:1.1}
+.lead{margin:4px 0 0;color:var(--mute);font-size:13px;line-height:1.5;max-width:34em}
+.time{font-variant-numeric:tabular-nums;font-weight:700;font-size:22px;white-space:nowrap}
+main{flex:1;min-height:0;display:grid;grid-template-rows:auto 1fr;gap:12px}
+.stage{justify-self:center}
+.board{
+  position:relative;background-color:var(--board);
+  background-image:
+    linear-gradient(to right,var(--grid) var(--lw),transparent var(--lw)),
+    linear-gradient(to bottom,var(--grid) var(--lw),transparent var(--lw));
+  background-position:0 0;
+  box-shadow:0 0 0 4px var(--frame);touch-action:none;
+}
+.bar{display:flex;align-items:center;gap:8px;margin-top:14px}
+.count{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;margin-right:auto;white-space:nowrap}
+button{
+  font:inherit;font-weight:700;font-size:14px;border:0;border-radius:8px;
+  padding:8px 13px;background:var(--btn);color:var(--btnink);cursor:pointer;min-height:38px;
+}
+button.quiet{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--mute)}
+button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
+.msg{min-height:1.5em;margin:6px 0 0;font-size:13px;color:var(--mute)}
+.tray{
+  background:var(--panel);border-radius:10px;padding:10px;overflow:auto;
+  display:flex;flex-wrap:wrap;gap:7px;align-content:flex-start;align-items:flex-start;
+}
+.tile{
+  display:grid;place-items:center;border-radius:1px;cursor:grab;
+  container-type:size;box-shadow:inset 0 0 0 1px rgba(0,0,0,.34);
+  color:var(--tileink);touch-action:none;flex:none;
+  background:var(--c,#999);
+}
+.tile.in-tray{border-radius:3px}
+.tile span{font-weight:900;font-size:max(9px,44cqmin);font-variant-numeric:tabular-nums;line-height:1;pointer-events:none}
+.tile.on-board{position:absolute}
+.tile.tiny span{display:none}
+.tile.dragging{
+  position:fixed;z-index:50;pointer-events:none;cursor:grabbing;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.34),0 12px 26px rgba(0,0,0,.38);
+}
+.preview{position:absolute;border:2px solid var(--ok);background:color-mix(in srgb,var(--ok) 26%,transparent);pointer-events:none;z-index:5}
+.preview.bad{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 26%,transparent)}
+.tile.wrong{animation:wrong 1.4s ease}
+@keyframes wrong{0%,100%{box-shadow:inset 0 0 0 1px rgba(0,0,0,.34)}15%,60%{box-shadow:inset 0 0 0 4px var(--bad)}}
+.sweep .tile{animation:glow .8s ease both;animation-delay:calc(var(--d) * 1ms)}
+@keyframes glow{0%{filter:none}40%{filter:brightness(1.3) saturate(1.2)}100%{filter:none}}
+.result{background:var(--panel);border-radius:10px;padding:18px;overflow:auto}
+.result h2{margin:0 0 4px;font-size:28px;font-weight:900}
+.result .t{font-size:16px;font-variant-numeric:tabular-nums;margin:0 0 12px;font-weight:700}
+.result p{margin:0 0 14px;line-height:1.7;font-size:14px;max-width:34em}
+.result .row{display:flex;gap:8px;flex-wrap:wrap}
+[hidden]{display:none!important}
+.app.wide main{grid-template-rows:1fr;grid-template-columns:auto 1fr;gap:20px}
+.app.wide .stage{justify-self:start}
+
+/* board picker */
+.sheet{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheet-body{
+  background:var(--sheet);width:min(560px,100%);max-height:88%;overflow:auto;
+  border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));
+}
+@media (min-width:760px){.sheet{align-items:center}.sheet-body{border-radius:16px;max-height:86%}}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.sheet-head h2{margin:0;font-size:20px;font-weight:900}
+.sheet .hint{margin:0 0 10px;font-size:12.5px;color:var(--mute)}
+#plist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.pitem{
+  display:block;width:100%;text-align:left;background:transparent;color:var(--ink);
+  border-radius:10px;padding:10px 12px;box-shadow:inset 0 0 0 1.5px var(--line);font-weight:500;
+}
+.pitem[aria-current="true"]{box-shadow:inset 0 0 0 2.5px var(--ok)}
+.pitem .n{display:flex;justify-content:space-between;gap:8px;font-weight:900;font-size:16px}
+.pitem .n small{font-weight:700;font-size:12.5px;color:var(--ok);white-space:nowrap}
+.pitem .d{display:block;margin-top:3px;font-size:12.5px;line-height:1.55;color:var(--mute)}
+.credit{margin:14px 0 0;font-size:12px;line-height:1.6;color:var(--mute)}
+.credit a{color:inherit}
+@media (prefers-reduced-motion: reduce){.sweep .tile,.tile.wrong{animation:none}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header id="head">
+    <div>
+      <h1>正方形の正方形</h1>
+      <p class="lead" id="lead"></p>
+    </div>
+    <div class="time" id="time">0:00</div>
+  </header>
+  <main>
+    <section class="stage" id="stage">
+      <div class="board" id="board"><div class="preview" id="preview" hidden></div></div>
+      <div class="bar">
+        <span class="count" id="count" aria-live="polite">0 / 0</span>
+        <button class="quiet" id="menuBtn" type="button">盤面</button>
+        <button class="quiet" id="hintBtn" type="button">ヒント</button>
+        <button class="quiet" id="resetBtn" type="button">リセット</button>
+      </div>
+      <p class="msg" id="msg" aria-live="polite"></p>
+    </section>
+    <section class="tray" id="tray" aria-label="残りの駒"></section>
+    <section class="result" id="result" hidden>
+      <h2>完成!</h2>
+      <p class="t" id="resultTime"></p>
+      <p id="resultFact"></p>
+      <div class="row">
+        <button id="nextBtn" type="button">次の盤面へ</button>
+        <button class="quiet" id="againBtn" type="button">もう一度あそぶ</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-label="盤面を選ぶ">
+  <div class="sheet-body">
+    <div class="sheet-head"><h2>盤面を選ぶ</h2><button class="quiet" id="closeSheet" type="button">閉じる</button></div>
+    <p class="hint">盤面を変えると、いまの配置は消えます。</p>
+    <ul id="plist"></ul>
+    <p class="credit">盤面データの出典: <a href="http://www.squaring.net/" target="_blank" rel="noopener">squaring.net</a>(Stuart Anderson ほか)に掲載された完全正方形分割のリスト。駒の大きさの組から、配置をこのゲーム用に復元しています。</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  /* 盤面データ: [size, x, y] の配列。sols は回転・反転を除いた解の一覧 */
+  const PUZZLES = [{"id":"quilt13","name":"ロイドのキルト 13×13","desc":"11枚。同じ大きさの駒を含む入門盤面。ロイドが1900年代に出題した「継ぎはぎキルト」で、解は1つ。","fact":"同じ大きさの駒を許すと、13×13は最小11枚で埋まります。この分割は唯一の解で、ロイドが出題し、ドゥーデニーが「パーキンス夫人のキルト」として広めました。","side":13,"sols":[[[1,2,3],[1,5,6],[2,0,3],[2,0,5],[2,5,4],[3,0,0],[3,2,4],[4,3,0],[6,0,7],[6,7,0],[7,6,6]]]},{"id":"s21_112","name":"21枚・112×112","desc":"完全正方形分割で最小の枚数。1978年、デュイヴェスティンが発見。解は1つだけ。","fact":"大きさがすべて違う正方形での分割は、21枚が最小です(デュイヴェスティン、1978年)。この21枚の解は、回転・反転を除いてただ1つです。","side":112,"sols":[[[2,47,50],[4,79,75],[6,24,46],[7,42,52],[8,19,27],[9,49,50],[11,19,35],[15,47,35],[16,42,59],[17,30,35],[18,24,52],[19,0,27],[24,0,46],[25,58,50],[27,0,0],[29,83,50],[33,79,79],[35,27,0],[37,42,75],[42,0,70],[50,62,0]]]},{"id":"s22_110A","name":"22枚・110×110(A)","desc":"一辺110は完全正方形分割の最小サイズ。1978年、デュイヴェスティンが発見。","fact":"一辺110は、完全正方形分割の最小サイズです。該当する分割は、この盤面を含む3つだけ(ガンビーニが1999年に証明)。","side":110,"sols":[[[2,24,26],[3,92,18],[4,67,17],[6,54,30],[7,60,30],[8,46,28],[12,83,21],[13,54,17],[14,46,36],[15,95,18],[16,67,21],[17,54,0],[18,92,0],[21,71,0],[22,24,28],[23,60,37],[24,0,26],[26,0,0],[27,83,33],[28,26,0],[50,60,60],[60,0,50]]]},{"id":"s22_110B","name":"22枚・110×110(B)","desc":"110Aと同じ一辺110の別解。1978年、ウィルコックスが発見。","fact":"一辺110は、完全正方形分割の最小サイズです。該当する分割は、この盤面を含む3つだけ(ガンビーニが1999年に証明)。","side":110,"sols":[[[1,17,18],[2,26,84],[3,30,47],[4,33,19],[6,30,50],[8,28,56],[9,21,47],[12,21,35],[14,36,50],[16,17,19],[17,0,18],[18,0,0],[19,18,0],[21,0,35],[22,28,64],[23,37,0],[24,26,86],[26,0,84],[27,33,23],[28,0,56],[50,60,0],[60,50,50]]]},{"id":"s23_110","name":"23枚・110×110","desc":"一辺110の3つめ。1990年、デュイヴェスティンの全数探索で見つかった。","fact":"一辺110の完全正方形分割は、22枚の2つとこの23枚の計3つだけです。枚数が多い分割のほうが、辺が小さくなることもあります。","side":110,"sols":[[[1,43,45],[2,43,43],[3,40,43],[4,40,46],[5,40,38],[7,38,31],[8,65,73],[10,59,31],[12,28,38],[13,65,60],[14,45,31],[15,44,45],[16,28,50],[19,59,41],[21,44,60],[28,0,38],[29,44,81],[31,38,0],[32,78,41],[37,73,73],[38,0,0],[41,69,0],[44,0,66]]]},{"id":"s24_120","name":"24枚・120×120","desc":"24枚の単純完全正方形分割のうち一辺が最小。1991年、デュイヴェスティン。","fact":"24枚の完全正方形分割のうち、一辺が最も小さい(120)分割です。","side":120,"sols":[[[3,36,50],[4,19,49],[5,14,49],[6,40,34],[8,79,71],[9,14,40],[10,36,40],[12,62,34],[13,23,40],[14,0,40],[15,47,73],[16,46,34],[17,62,71],[19,0,54],[20,19,53],[23,39,50],[25,62,46],[32,47,88],[33,87,46],[34,40,0],[40,0,0],[41,79,79],[46,74,0],[47,0,73]]]},{"id":"s22_139","name":"22枚・139×139","desc":"1990年の全数探索で見つかった22枚の分割のひとつ。","fact":"22枚の完全正方形分割は、デュイヴェスティンの探索で8つ見つかっています。","side":139,"sols":[[[1,29,30],[2,117,22],[3,61,32],[4,57,31],[7,57,35],[8,93,24],[10,64,32],[17,57,42],[18,101,24],[20,119,22],[21,80,59],[22,117,0],[24,93,0],[27,74,32],[28,29,31],[29,0,30],[30,0,0],[31,30,0],[32,61,0],[38,101,42],[59,80,80],[80,0,59]]]},{"id":"s22_147","name":"22枚・147×147(A)","desc":"1990年の全数探索で見つかった22枚の分割のひとつ。","fact":"22枚の完全正方形分割は、デュイヴェスティンの探索で8つ見つかっています。","side":147,"sols":[[[1,32,72],[3,63,121],[4,99,48],[5,42,47],[8,25,64],[9,33,64],[17,25,47],[20,43,104],[21,42,52],[23,43,124],[25,0,47],[26,66,121],[29,63,92],[31,32,73],[32,0,72],[40,63,52],[43,0,104],[44,103,48],[47,0,0],[48,99,0],[52,47,0],[55,92,92]]]},{"id":"s22_147b","name":"22枚・147×147(B)","desc":"一辺が同じ147の別の分割。駒の組み合わせは(A)と違います。","fact":"22枚の完全正方形分割は、デュイヴェスティンの探索で8つ見つかっています。","side":147,"sols":[[[2,43,45],[4,128,92],[8,84,47],[10,105,115],[11,121,81],[12,93,113],[15,132,81],[19,128,96],[21,84,92],[22,93,125],[23,105,92],[25,59,88],[26,121,55],[32,115,115],[34,59,113],[37,84,55],[41,43,47],[43,0,45],[45,0,0],[47,45,0],[55,92,0],[59,0,88]]]},{"id":"s22_154","name":"22枚・154×154","desc":"1990年の全数探索で見つかった22枚の分割のひとつ。","fact":"22枚の完全正方形分割は、デュイヴェスティンの探索で8つ見つかっています。","side":154,"sols":[[[2,67,68],[5,26,68],[9,93,61],[11,102,113],[16,67,105],[17,50,104],[19,83,105],[21,26,47],[22,47,46],[24,69,46],[26,0,47],[30,83,124],[31,0,73],[33,50,121],[35,67,70],[36,31,68],[41,113,113],[46,47,0],[47,0,0],[50,0,104],[52,102,61],[61,93,0]]]},{"id":"s22_192","name":"22枚・192×192","desc":"22枚の分割のうち一辺が最大。1978年、デュイヴェスティンが発見。","fact":"22枚の完全正方形分割は、デュイヴェスティンの探索で8つ見つかっています。","side":192,"sols":[[[4,82,86],[8,127,49],[9,146,85],[10,146,94],[12,47,121],[14,113,90],[17,113,104],[19,127,85],[26,130,104],[28,127,57],[31,82,90],[35,47,86],[36,156,94],[37,155,57],[41,86,49],[47,0,86],[49,86,0],[57,135,0],[59,0,133],[62,130,130],[71,59,121],[86,0,0]]]},{"id":"c24_175","name":"24枚・175×175(合成)","desc":"内側に小さな長方形の分割を含む「合成」型。1948年、ウィルコックスが発見。","fact":"内側に長方形の分割を含む「合成」型では、この24枚が最小です。長方形の向きを変えると、同じ駒で別の完成形が4通りできます。","side":175,"sols":[[[1,19,52],[2,95,140],[3,20,52],[4,19,48],[5,14,48],[8,124,132],[9,14,39],[14,0,39],[16,23,39],[18,20,55],[20,0,53],[29,95,111],[30,94,81],[31,64,111],[33,64,142],[35,97,140],[38,0,73],[39,0,0],[43,132,132],[51,124,81],[55,39,0],[56,38,55],[64,0,111],[81,94,0]],[[1,19,58],[2,95,140],[3,20,56],[4,19,59],[5,14,58],[8,124,132],[9,14,63],[14,0,58],[16,23,56],[18,20,38],[20,0,38],[29,95,111],[30,94,81],[31,64,111],[33,64,142],[35,97,140],[38,0,0],[39,0,72],[43,132,132],[51,124,81],[55,39,56],[56,38,0],[64,0,111],[81,94,0]],[[1,52,74],[2,140,95],[3,52,71],[4,48,71],[5,48,75],[8,132,124],[9,39,71],[14,39,80],[16,39,55],[18,55,56],[20,53,74],[29,111,95],[30,81,94],[31,111,64],[33,142,64],[35,140,97],[38,73,56],[39,0,55],[43,132,132],[51,81,124],[55,0,0],[56,55,0],[64,111,0],[81,0,94]],[[1,58,74],[2,140,95],[3,56,71],[4,59,71],[5,58,75],[8,132,124],[9,63,71],[14,58,80],[16,56,55],[18,38,56],[20,38,74],[29,111,95],[30,81,94],[31,111,64],[33,142,64],[35,140,97],[38,0,56],[39,72,55],[43,132,132],[51,81,124],[55,56,0],[56,0,0],[64,111,0],[81,0,94]]]}];
+  const PAL = ['#62AEA4','#E2A85A','#DB7A6D','#7F97C8','#A9C47D','#C892B8','#9F9A88'];
+  const $ = id => document.getElementById(id);
+  const app = $('app'), head = $('head'), board = $('board'), tray = $('tray'),
+        preview = $('preview'), stage = $('stage'), result = $('result'), sheet = $('sheet');
+
+  let PZ = null, N = 112, u = 3, pieces = [];
+  let drag = null, startedAt = null, timerId = null, won = false, resetTimer = null;
+
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+  };
+
+  const trayPx = s => Math.max(26, Math.round(s * u * 0.55));
+  const clamp = (v, s) => Math.max(0, Math.min(N - s, v));
+  const snapRadius = () => Math.max(1, Math.min(4, Math.round(9 / u)));
+
+  function free(p, x, y) {
+    if (x < 0 || y < 0 || x + p.s > N || y + p.s > N) return false;
+    for (const q of pieces) {
+      if (q === p || !q.pos) continue;
+      if (x < q.pos.x + q.s && x + p.s > q.pos.x && y < q.pos.y + q.s && y + p.s > q.pos.y) return false;
+    }
+    return true;
+  }
+  function findSnap(p, gx, gy) {
+    const cx = clamp(gx, p.s), cy = clamp(gy, p.s), R = snapRadius();
+    let best = null, bd = 1e9;
+    for (let dx = -R; dx <= R; dx++) for (let dy = -R; dy <= R; dy++) {
+      const d = dx * dx + dy * dy;
+      if (d < bd && free(p, cx + dx, cy + dy)) { bd = d; best = { x: cx + dx, y: cy + dy }; }
+    }
+    return best;
+  }
+
+  /* ---- tiles ---- */
+  function makeTile(s, i) {
+    const el = document.createElement('div');
+    el.className = 'tile in-tray';
+    el.style.setProperty('--c', PAL[(i * 3) % 7]);
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', s + 'の正方形');
+    const sp = document.createElement('span'); sp.textContent = s; el.appendChild(sp);
+    const p = { s, pos: null, el };
+    el.addEventListener('pointerdown', e => down(e, p));
+    return p;
+  }
+  function styleBoard(p) {
+    const el = p.el, s = p.s, x = p.pos.x, y = p.pos.y;
+    el.className = 'tile on-board' + (s * u < 14 ? ' tiny' : '');
+    el.style.left = x / N * 100 + '%'; el.style.top = y / N * 100 + '%';
+    el.style.width = el.style.height = s / N * 100 + '%';
+  }
+  function toBoard(p) { styleBoard(p); board.appendChild(p.el); }
+  function toTray(p) {
+    p.pos = null;
+    const el = p.el, px = trayPx(p.s);
+    el.className = 'tile in-tray';
+    el.style.left = el.style.top = '';
+    el.style.width = el.style.height = px + 'px';
+    tray.appendChild(el);
+  }
+  function renderAll() {
+    for (const p of pieces) {
+      if (drag && drag.visual && drag.p === p) continue;
+      p.pos ? toBoard(p) : toTray(p);
+    }
+  }
+
+  const placedCount = () => pieces.filter(p => p.pos).length;
+  function refreshCount() { $('count').textContent = placedCount() + ' / ' + pieces.length; }
+  function say(t) { $('msg').textContent = t; }
+  function fmt(ms) { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+  function startTimer() {
+    if (startedAt) return;
+    startedAt = Date.now();
+    timerId = setInterval(() => { $('time').textContent = fmt(Date.now() - startedAt); }, 500);
+  }
+  function stopTimer() { clearInterval(timerId); timerId = null; }
+
+  function place(p, pos) {
+    p.pos = { x: pos.x, y: pos.y };
+    toBoard(p);
+    refreshCount();
+    if (pieces.every(q => q.pos)) win();
+  }
+
+  /* ---- drag ---- */
+  function down(e, p) {
+    if (won || drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    e.preventDefault();
+    drag = { p, pid: e.pointerId, x0: e.clientX, y0: e.clientY, touch: e.pointerType !== 'mouse',
+             visual: false, from: p.pos ? { ...p.pos } : null, snap: null, near: false };
+    try { p.el.setPointerCapture(e.pointerId); } catch (_) {}
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    if (!p.pos) { beginVisual(); update(e); }
+  }
+  function beginVisual() {
+    const { p } = drag, G = p.s * u;
+    drag.visual = true;
+    startTimer();
+    p.el.className = 'tile dragging';
+    p.el.style.left = p.el.style.top = '';
+    p.el.style.width = p.el.style.height = G + 'px';
+    if (p.pos) { p.pos = null; refreshCount(); }
+  }
+  function update(e) {
+    const { p } = drag, G = p.s * u;
+    const lift = drag.touch ? Math.min(G / 2, 44) + 24 : 0;
+    const cx = e.clientX, cy = e.clientY - lift;
+    p.el.style.left = (cx - G / 2) + 'px';
+    p.el.style.top = (cy - G / 2) + 'px';
+    const br = board.getBoundingClientRect(), m = G * 0.25;
+    drag.near = cx > br.left - m && cx < br.right + m && cy > br.top - m && cy < br.bottom + m;
+    drag.snap = null;
+    if (drag.near) {
+      const gx = Math.round((cx - G / 2 - br.left) / u), gy = Math.round((cy - G / 2 - br.top) / u);
+      drag.snap = findSnap(p, gx, gy);
+      const at = drag.snap || { x: clamp(gx, p.s), y: clamp(gy, p.s) };
+      preview.hidden = false;
+      preview.className = 'preview' + (drag.snap ? '' : ' bad');
+      preview.style.left = at.x / N * 100 + '%';
+      preview.style.top = at.y / N * 100 + '%';
+      preview.style.width = preview.style.height = p.s / N * 100 + '%';
+    } else preview.hidden = true;
+  }
+  function move(e) {
+    if (!drag || e.pointerId !== drag.pid) return;
+    if (!drag.visual) {
+      if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 5) return;
+      beginVisual();
+    }
+    update(e);
+  }
+  function finish(e, cancelled) {
+    if (!drag || e.pointerId !== drag.pid) return;
+    const d = drag; drag = null;
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', cancel);
+    preview.hidden = true;
+    const p = d.p;
+    if (!d.visual) { toTray(p); refreshCount(); say('駒をトレイに戻しました。'); return; }
+    if (!cancelled && d.snap) { place(p, d.snap); if (!won) say(''); }
+    else if (d.from && (cancelled || d.near)) { place(p, d.from); say('そこには置けません。元の位置に戻しました。'); }
+    else { toTray(p); refreshCount(); }
+  }
+  const up = e => finish(e, false);
+  const cancel = e => finish(e, true);
+
+  /* ---- hint ---- */
+  function transformed() {
+    const out = [];
+    for (const sol of PZ.sols) for (let t = 0; t < 8; t++) {
+      out.push(sol.map(([s, x, y]) => {
+        let X = x, Y = y;
+        for (let k = 0; k < (t & 3); k++) [X, Y] = [N - Y - s, X];
+        if (t & 4) X = N - X - s;
+        return [s, X, Y];
+      }));
+    }
+    return out;
+  }
+  const key = (s, x, y) => s + ',' + x + ',' + y;
+  function hint() {
+    if (won) return;
+    const placed = pieces.filter(p => p.pos);
+    const pk = new Set(placed.map(p => key(p.s, p.pos.x, p.pos.y)));
+    let best = null, bestScore = -1;
+    for (const L of transformed()) {
+      const sc = L.reduce((a, [s, x, y]) => a + (pk.has(key(s, x, y)) ? 1 : 0), 0);
+      if (sc > bestScore) { bestScore = sc; best = L; }
+    }
+    const bk = new Set(best.map(([s, x, y]) => key(s, x, y)));
+    const wrong = placed.filter(p => !bk.has(key(p.s, p.pos.x, p.pos.y)));
+    if (wrong.length) {
+      wrong.forEach(p => { p.el.classList.remove('wrong'); void p.el.offsetWidth; p.el.classList.add('wrong'); });
+      say('光っている駒は、用意した解と位置が違います。見直してみよう。');
+      return;
+    }
+    const p = pieces.find(q => !q.pos);
+    if (!p) return;
+    const target = best.find(([s, x, y]) => s === p.s && !pk.has(key(s, x, y)));
+    if (!target) return;
+    startTimer();
+    place(p, { x: target[1], y: target[2] });
+    if (!won) say(p.s + ' の駒を正しい位置に置きました。');
+  }
+
+  /* ---- win / reset ---- */
+  function win() {
+    won = true; stopTimer();
+    const ms = Date.now() - (startedAt || Date.now());
+    $('time').textContent = fmt(ms);
+    let extra = '';
+    const bk = 'sqsq-best-' + PZ.id, prev = parseInt(store.get(bk) || '', 10);
+    if (!prev || ms < prev) { store.set(bk, String(ms)); extra = prev ? '(自己ベスト更新)' : ''; }
+    else extra = '(自己ベスト ' + fmt(prev) + ')';
+    $('resultTime').textContent = 'タイム ' + fmt(ms) + ' ' + extra;
+    $('resultFact').textContent = PZ.fact;
+    pieces.forEach(p => p.el.style.setProperty('--d', (p.pos.x + p.pos.y) * (600 / N)));
+    board.classList.add('sweep');
+    setTimeout(() => { tray.hidden = true; result.hidden = false; }, 900);
+    say('');
+  }
+  function reset() {
+    pieces.forEach(p => { p.pos = null; });
+    won = false; stopTimer(); startedAt = null;
+    $('time').textContent = '0:00';
+    board.classList.remove('sweep');
+    tray.hidden = false; result.hidden = true;
+    renderAll(); refreshCount();
+    say('駒をドラッグして枠へ。置いた駒はタップで戻せます。');
+  }
+
+  /* ---- puzzles ---- */
+  function loadPuzzle(id) {
+    PZ = PUZZLES.find(p => p.id === id) || PUZZLES[0];
+    store.set('sqsq-last', PZ.id);
+    N = PZ.side;
+    pieces.forEach(p => p.el.remove());
+    const sizes = PZ.sols[0].map(t => t[0]).sort((a, b) => b - a);
+    pieces = sizes.map((s, i) => makeTile(s, i));
+    $('lead').textContent = pieces.length + '枚の正方形で、' + N + '×' + N + 'の枠をすき間なく埋めよう。';
+    fit(); reset();
+  }
+  function buildList() {
+    const ul = $('plist'); ul.textContent = '';
+    for (const P of PUZZLES) {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'pitem';
+      if (PZ && P.id === PZ.id) b.setAttribute('aria-current', 'true');
+      const best = parseInt(store.get('sqsq-best-' + P.id) || '', 10);
+      const n = document.createElement('span'); n.className = 'n';
+      n.textContent = P.name;
+      if (best) { const sm = document.createElement('small'); sm.textContent = 'ベスト ' + fmt(best); n.appendChild(sm); }
+      const d = document.createElement('span'); d.className = 'd'; d.textContent = P.desc;
+      b.append(n, d);
+      b.addEventListener('click', () => { closeSheet(); loadPuzzle(P.id); });
+      li.appendChild(b); ul.appendChild(li);
+    }
+  }
+  function openSheet() { buildList(); sheet.hidden = false; $('closeSheet').focus(); }
+  function closeSheet() { sheet.hidden = true; }
+
+  $('menuBtn').addEventListener('click', openSheet);
+  $('closeSheet').addEventListener('click', closeSheet);
+  sheet.addEventListener('click', e => { if (e.target === sheet) closeSheet(); });
+  addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+  $('hintBtn').addEventListener('click', hint);
+  $('againBtn').addEventListener('click', reset);
+  $('nextBtn').addEventListener('click', () => {
+    const i = PUZZLES.findIndex(p => p.id === PZ.id);
+    loadPuzzle(PUZZLES[(i + 1) % PUZZLES.length].id);
+  });
+  $('resetBtn').addEventListener('click', () => {
+    const b = $('resetBtn');
+    if (placedCount() === 0 || won || b.dataset.arm) { delete b.dataset.arm; b.textContent = 'リセット'; clearTimeout(resetTimer); reset(); return; }
+    b.dataset.arm = '1'; b.textContent = 'もう一度押す';
+    resetTimer = setTimeout(() => { delete b.dataset.arm; b.textContent = 'リセット'; }, 3000);
+  });
+
+  /* ---- layout: 1マス = 端末ピクセルの整数倍にそろえ、グリッドと駒の縁を一致させる ---- */
+  function fit() {
+    const W = innerWidth, H = innerHeight, dpr = window.devicePixelRatio || 1;
+    const wide = W >= 760 && W >= H * 1.1;
+    app.classList.toggle('wide', wide);
+    const hh = head.offsetHeight;
+    const bs = wide ? Math.min(H - hh - 130, W * 0.56, 784) : Math.min(W - 24, (H - hh - 40) * 0.56, 672);
+    u = Math.max(1 / dpr, Math.floor(bs * dpr / N) / dpr);
+    const px = u * N;
+    board.style.width = board.style.height = px + 'px';
+    stage.style.width = px + 'px';
+    board.style.backgroundSize = u + 'px ' + u + 'px';
+    board.style.setProperty('--lw', Math.max(1 / dpr, Math.min(1, u / 3)) + 'px');
+    renderAll();
+  }
+  addEventListener('resize', fit);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+
+  const last = store.get('sqsq-last');
+  loadPuzzle(PUZZLES.some(p => p.id === last) ? last : PUZZLES[0].id);
+})();
+</script>
+</body>
+</html>
