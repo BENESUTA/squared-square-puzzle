@@ -62,6 +62,12 @@ button{
 }
 button.quiet{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--mute)}
 button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
+button:disabled{opacity:.35;pointer-events:none}
+.bar{flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translate(-50%,12px);
+  background:var(--frame);color:var(--btnink,#F2F6F7);font-size:13px;font-weight:700;padding:9px 16px;border-radius:20px;
+  opacity:0;transition:opacity .2s ease,transform .2s ease;pointer-events:none;z-index:200;white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,0)}
 .msg{min-height:1.5em;margin:6px 0 0;font-size:13px;color:var(--mute)}
 .tray{
   background:var(--panel);border-radius:10px;padding:10px;overflow:auto;
@@ -134,8 +140,9 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
       <div class="board" id="board"><div class="preview" id="preview" hidden></div></div>
       <div class="bar">
         <span class="count" id="count" aria-live="polite">0 / 0</span>
-        <button class="quiet" id="menuBtn" type="button">盤面</button>
+        <button class="quiet" id="undoBtn" type="button">一手戻す</button>
         <button class="quiet" id="hintBtn" type="button">ヒント</button>
+        <button class="quiet" id="menuBtn" type="button">盤面</button>
         <button class="quiet" id="resetBtn" type="button">リセット</button>
       </div>
       <p class="msg" id="msg" aria-live="polite"></p>
@@ -148,10 +155,12 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
       <div class="row">
         <button id="nextBtn" type="button">次の盤面へ</button>
         <button class="quiet" id="againBtn" type="button">もう一度あそぶ</button>
+        <button class="quiet" id="shareBtn" type="button">結果を共有</button>
       </div>
     </section>
   </main>
 </div>
+<div class="toast" id="toast" aria-live="polite"></div>
 
 <div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-label="盤面を選ぶ">
   <div class="sheet-body">
@@ -173,6 +182,7 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
 
   let PZ = null, N = 112, u = 3, pieces = [];
   let drag = null, startedAt = null, timerId = null, won = false, resetTimer = null;
+  let history = [], hintCount = 0, finalMs = 0, toastTimer = null;
 
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
@@ -210,6 +220,7 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
     el.setAttribute('aria-label', s + 'の正方形');
     const sp = document.createElement('span'); sp.textContent = s; el.appendChild(sp);
     const p = { s, pos: null, el };
+    el.__size = s;
     el.addEventListener('pointerdown', e => down(e, p));
     return p;
   }
@@ -226,7 +237,16 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
     el.className = 'tile in-tray';
     el.style.left = el.style.top = '';
     el.style.width = el.style.height = px + 'px';
-    tray.appendChild(el);
+    insertSorted(el);
+  }
+  /* 大きい順を保ったままトレイに挿入する(同じ大きさのときは末尾へ) */
+  function insertSorted(el) {
+    let before = null;
+    for (const child of tray.children) {
+      if (child === el) continue;
+      if (child.__size < el.__size) { before = child; break; }
+    }
+    before ? tray.insertBefore(el, before) : tray.appendChild(el);
   }
   function renderAll() {
     for (const p of pieces) {
@@ -310,13 +330,36 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
     window.removeEventListener('pointercancel', cancel);
     preview.hidden = true;
     const p = d.p;
-    if (!d.visual) { toTray(p); refreshCount(); say('駒をトレイに戻しました。'); return; }
-    if (!cancelled && d.snap) { place(p, d.snap); if (!won) say(''); }
+    if (!d.visual) {
+      if (d.from) recordMove(p, d.from);
+      toTray(p); refreshCount(); say('駒をトレイに戻しました。');
+      return;
+    }
+    if (!cancelled && d.snap) {
+      const changed = !d.from || d.from.x !== d.snap.x || d.from.y !== d.snap.y;
+      if (changed) recordMove(p, d.from);
+      place(p, d.snap); if (!won) say('');
+    }
     else if (d.from && (cancelled || d.near)) { place(p, d.from); say('そこには置けません。元の位置に戻しました。'); }
-    else { toTray(p); refreshCount(); }
+    else { if (d.from) recordMove(p, d.from); toTray(p); refreshCount(); }
   }
   const up = e => finish(e, false);
   const cancel = e => finish(e, true);
+
+  /* ---- undo ---- */
+  function recordMove(p, from) {
+    history.push({ p, from: from ? { ...from } : null });
+    updateUndoBtn();
+  }
+  function updateUndoBtn() { $('undoBtn').disabled = won || history.length === 0; }
+  function undo() {
+    if (won || drag || !history.length) return;
+    const { p, from } = history.pop();
+    if (from) { p.pos = { ...from }; toBoard(p); } else { toTray(p); }
+    refreshCount();
+    updateUndoBtn();
+    say('ひとつ前の状態に戻しました。');
+  }
 
   /* ---- hint ---- */
   function transformed() {
@@ -353,6 +396,8 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
     const target = best.find(([s, x, y]) => s === p.s && !pk.has(key(s, x, y)));
     if (!target) return;
     startTimer();
+    recordMove(p, null);
+    hintCount++;
     place(p, { x: target[1], y: target[2] });
     if (!won) say(p.s + ' の駒を正しい位置に置きました。');
   }
@@ -360,13 +405,15 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
   /* ---- win / reset ---- */
   function win() {
     won = true; stopTimer();
+    updateUndoBtn();
     const ms = Date.now() - (startedAt || Date.now());
+    finalMs = ms;
     $('time').textContent = fmt(ms);
     let extra = '';
     const bk = 'sqsq-best-' + PZ.id, prev = parseInt(store.get(bk) || '', 10);
     if (!prev || ms < prev) { store.set(bk, String(ms)); extra = prev ? '(自己ベスト更新)' : ''; }
     else extra = '(自己ベスト ' + fmt(prev) + ')';
-    $('resultTime').textContent = 'タイム ' + fmt(ms) + ' ' + extra;
+    $('resultTime').textContent = 'タイム ' + fmt(ms) + ' ' + extra + ' ・ ヒント ' + hintCount + '回';
     $('resultFact').textContent = PZ.fact;
     pieces.forEach(p => p.el.style.setProperty('--d', (p.pos.x + p.pos.y) * (600 / N)));
     board.classList.add('sweep');
@@ -376,6 +423,8 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
   function reset() {
     pieces.forEach(p => { p.pos = null; });
     won = false; stopTimer(); startedAt = null;
+    history = []; hintCount = 0;
+    updateUndoBtn();
     $('time').textContent = '0:00';
     board.classList.remove('sweep');
     tray.hidden = false; result.hidden = true;
@@ -414,11 +463,41 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
   function openSheet() { buildList(); sheet.hidden = false; $('closeSheet').focus(); }
   function closeSheet() { sheet.hidden = true; }
 
+  /* ---- share ---- */
+  function toast(t) {
+    const el = $('toast');
+    el.textContent = t;
+    clearTimeout(toastTimer);
+    el.classList.add('show');
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+  function shareUrl() {
+    const url = new URL(location.href);
+    url.searchParams.set('p', PZ.id);
+    return url.toString();
+  }
+  function shareText() {
+    return '正方形の正方形「' + PZ.name + '」を ' + fmt(finalMs) + '(ヒント' + hintCount + '回)でクリア!\n' + shareUrl();
+  }
+  async function share() {
+    const text = shareText();
+    if (navigator.share) {
+      try { await navigator.share({ text }); } catch (_) {}
+      return;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try { await navigator.clipboard.writeText(text); toast('結果をコピーしました'); return; } catch (_) {}
+    }
+    toast('この環境では共有できません');
+  }
+
   $('menuBtn').addEventListener('click', openSheet);
   $('closeSheet').addEventListener('click', closeSheet);
   sheet.addEventListener('click', e => { if (e.target === sheet) closeSheet(); });
   addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
   $('hintBtn').addEventListener('click', hint);
+  $('undoBtn').addEventListener('click', undo);
+  $('shareBtn').addEventListener('click', share);
   $('againBtn').addEventListener('click', reset);
   $('nextBtn').addEventListener('click', () => {
     const i = PUZZLES.findIndex(p => p.id === PZ.id);
@@ -449,8 +528,10 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
   addEventListener('resize', fit);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
 
+  const urlId = new URLSearchParams(location.search).get('p');
   const last = store.get('sqsq-last');
-  loadPuzzle(PUZZLES.some(p => p.id === last) ? last : PUZZLES[0].id);
+  const startId = PUZZLES.some(p => p.id === urlId) ? urlId : (PUZZLES.some(p => p.id === last) ? last : PUZZLES[0].id);
+  loadPuzzle(startId);
 })();
 </script>
 </body>
