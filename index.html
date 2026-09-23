@@ -14,7 +14,6 @@
   --board:#F8FAFA; --grid:rgba(26,42,49,.16); --frame:#1A2A31;
   --ok:#2E9E6B; --bad:#D6483E; --btn:#1A2A31; --btnink:#F2F6F7; --tileink:#1A2A31;
   --sheet:#F6F9F9; --line:rgba(26,42,49,.16);
-  --lw:1px;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px);
@@ -34,12 +33,12 @@
 html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
 *,*::before,*::after{box-sizing:border-box}
 body{
-  margin:0;height:100%;background:var(--bg);color:var(--ink);
+  margin:0;min-height:100%;background:var(--bg);color:var(--ink);
   font-family:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
   font-weight:500;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
-  overflow:hidden;
+  overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;
 }
-.app{height:100%;display:flex;flex-direction:column;gap:10px;padding:12px;max-width:1240px;margin:0 auto}
+.app{min-height:100%;display:flex;flex-direction:column;gap:10px;padding:12px;max-width:1240px;margin:0 auto}
 header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
 h1{margin:0;font-size:24px;font-weight:900;letter-spacing:.04em;line-height:1.1}
 .lead{margin:4px 0 0;color:var(--mute);font-size:13px;line-height:1.5;max-width:34em}
@@ -50,9 +49,6 @@ main{flex:1;min-height:0;display:grid;grid-template-rows:auto 1fr;gap:12px}
 .bottom > .tray, .bottom > .result{grid-area:1/1;min-height:0;height:100%}
 .board{
   position:relative;background-color:var(--board);
-  background-image:
-    linear-gradient(to right,var(--grid) var(--lw),transparent var(--lw)),
-    linear-gradient(to bottom,var(--grid) var(--lw),transparent var(--lw));
   background-position:0 0;
   box-shadow:0 0 0 4px var(--frame);touch-action:none;
 }
@@ -691,7 +687,10 @@ button:disabled{opacity:.35;pointer-events:none}
       board.style.width = board.style.height = px + 'px';
       stage.style.width = px + 'px';
       board.style.backgroundSize = u + 'px ' + u + 'px';
-      board.style.setProperty('--lw', Math.max(1 / dpr, Math.min(1, u / 3)) + 'px');
+      const lw = Math.max(1 / dpr, Math.min(1, u / 3));
+      board.style.backgroundImage =
+        'linear-gradient(to right, var(--grid) ' + lw + 'px, transparent ' + lw + 'px),' +
+        'linear-gradient(to bottom, var(--grid) ' + lw + 'px, transparent ' + lw + 'px)';
     } catch (e) {
       // 計算に失敗しても盤面が完全に消えないよう、最低限の大きさで表示する
       console.error('fit() failed, using fallback size', e);
