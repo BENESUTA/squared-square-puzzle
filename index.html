@@ -49,9 +49,11 @@ main{flex:1;min-height:0;display:grid;grid-template-rows:auto 1fr;gap:12px}
 .bottom > .tray, .bottom > .result{grid-area:1/1;min-height:0;height:100%}
 .board{
   position:relative;background-color:var(--board);
-  background-position:0 0;
   box-shadow:0 0 0 4px var(--frame);touch-action:none;
 }
+.gridline{position:absolute;background:var(--grid);pointer-events:none}
+.gridline.v{top:0;bottom:0;width:1px}
+.gridline.h{left:0;right:0;height:1px}
 .bar{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
 .count{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;margin-right:auto;white-space:nowrap}
 button{
@@ -95,6 +97,10 @@ button:disabled{opacity:.35;pointer-events:none}
 .result .t{font-size:16px;font-variant-numeric:tabular-nums;margin:0 0 12px;font-weight:700}
 .result p{margin:0 0 14px;line-height:1.7;font-size:14px;max-width:34em}
 .result .row{display:flex;gap:8px;flex-wrap:wrap}
+.shareLabel{margin:16px 0 8px!important;font-size:12.5px;font-weight:700;color:var(--mute)}
+.sns{min-width:84px}
+#shareX{background:#000;color:#fff;box-shadow:none}
+#shareLine{background:#06C755;color:#fff;box-shadow:none}
 [hidden]{display:none!important}
 .app.wide main{grid-template-rows:1fr;grid-template-columns:auto 1fr;gap:20px}
 .app.wide .stage{justify-self:start}
@@ -206,7 +212,12 @@ button:disabled{opacity:.35;pointer-events:none}
           <div class="row">
             <button id="nextBtn" type="button">次の盤面へ</button>
             <button class="quiet" id="againBtn" type="button">もう一度あそぶ</button>
-            <button class="quiet" id="shareBtn" type="button">結果を共有</button>
+          </div>
+          <p class="shareLabel">結果をシェア</p>
+          <div class="row">
+            <button class="quiet sns" id="shareX" type="button">X</button>
+            <button class="quiet sns" id="shareLine" type="button">LINE</button>
+            <button class="quiet sns" id="shareCopy" type="button">リンクをコピー</button>
           </div>
         </section>
       </div>
@@ -324,6 +335,22 @@ button:disabled{opacity:.35;pointer-events:none}
       if (drag && drag.visual && drag.p === p) continue;
       p.pos ? toBoard(p) : toTray(p);
     }
+  }
+  /* 盤面のマス目を、駒と同じ「%指定のabsolute div」で描画する(背景グラデーションだと
+     一部のブラウザで描画・再描画されないことがあったための対応) */
+  function drawGrid() {
+    board.querySelectorAll('.gridline').forEach(el => el.remove());
+    const frag = document.createDocumentFragment();
+    for (let i = 1; i < N; i++) {
+      const pct = (i / N * 100) + '%';
+      const v = document.createElement('div');
+      v.className = 'gridline v'; v.style.left = pct;
+      frag.appendChild(v);
+      const h = document.createElement('div');
+      h.className = 'gridline h'; h.style.top = pct;
+      frag.appendChild(h);
+    }
+    board.insertBefore(frag, board.firstChild);
   }
 
   const placedCount = () => pieces.filter(p => p.pos).length;
@@ -547,6 +574,7 @@ button:disabled{opacity:.35;pointer-events:none}
     const sizes = PZ.sols[0].map(t => t[0]).sort((a, b) => b - a);
     pieces = sizes.map((s, i) => makeTile(s, i));
     $('lead').textContent = pieces.length + '枚の正方形で、' + N + '×' + N + 'の枠をすき間なく埋めよう。';
+    drawGrid();
     fit(); reset();
   }
   function buildList() {
@@ -616,19 +644,29 @@ button:disabled{opacity:.35;pointer-events:none}
     url.searchParams.set('p', PZ.id);
     return url.toString();
   }
-  function shareText() {
-    return '正方形の正方形「' + PZ.name + '」を ' + fmt(finalMs) + '(ヒント' + hintCount + '回)でクリア!\n' + shareUrl();
+  function shareMessage() {
+    return '正方形の正方形「' + PZ.name + '」を ' + fmt(finalMs) + '(ヒント' + hintCount + '回)でクリア!';
   }
-  async function share() {
+  function shareText() {
+    return shareMessage() + '\n' + shareUrl();
+  }
+  function shareToX() {
+    const q = 'text=' + encodeURIComponent(shareMessage()) + '&url=' + encodeURIComponent(shareUrl());
+    window.open('https://twitter.com/intent/tweet?' + q, '_blank', 'noopener');
+  }
+  function shareToLine() {
+    const q = encodeURIComponent(shareText());
+    window.open('https://line.me/R/msg/text/?' + q, '_blank', 'noopener');
+  }
+  async function shareCopy() {
     const text = shareText();
-    if (navigator.share) {
-      try { await navigator.share({ text }); } catch (_) {}
-      return;
-    }
     if (navigator.clipboard && navigator.clipboard.writeText) {
       try { await navigator.clipboard.writeText(text); toast('結果をコピーしました'); return; } catch (_) {}
     }
-    toast('この環境では共有できません');
+    if (navigator.share) {
+      try { await navigator.share({ text }); return; } catch (_) {}
+    }
+    toast('この環境ではコピーできません');
   }
 
   $('freeModeBtn').addEventListener('click', openFreeSheet);
@@ -653,7 +691,9 @@ button:disabled{opacity:.35;pointer-events:none}
   $('hintBtn').addEventListener('click', hint);
   $('undoBtn').addEventListener('click', undo);
   $('redoBtn').addEventListener('click', redo);
-  $('shareBtn').addEventListener('click', share);
+  $('shareX').addEventListener('click', shareToX);
+  $('shareLine').addEventListener('click', shareToLine);
+  $('shareCopy').addEventListener('click', shareCopy);
   $('againBtn').addEventListener('click', reset);
   $('nextBtn').addEventListener('click', () => {
     if (mode === 'random') { loadPuzzle(pickRandomId()); return; }
@@ -686,11 +726,6 @@ button:disabled{opacity:.35;pointer-events:none}
       const px = u * N;
       board.style.width = board.style.height = px + 'px';
       stage.style.width = px + 'px';
-      board.style.backgroundSize = u + 'px ' + u + 'px';
-      const lw = Math.max(1 / dpr, Math.min(1, u / 3));
-      board.style.backgroundImage =
-        'linear-gradient(to right, var(--grid) ' + lw + 'px, transparent ' + lw + 'px),' +
-        'linear-gradient(to bottom, var(--grid) ' + lw + 'px, transparent ' + lw + 'px)';
     } catch (e) {
       // 計算に失敗しても盤面が完全に消えないよう、最低限の大きさで表示する
       console.error('fit() failed, using fallback size', e);
