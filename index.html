@@ -52,8 +52,8 @@ main{flex:1;min-height:0;display:grid;grid-template-rows:auto 1fr;gap:12px}
   box-shadow:0 0 0 4px var(--frame);touch-action:none;
 }
 .gridline{position:absolute;background:var(--grid);pointer-events:none}
-.gridline.v{top:0;bottom:0;width:1px}
-.gridline.h{left:0;right:0;height:1px}
+.gridline.v{top:0;bottom:0;width:1px;transform:translateX(-50%)}
+.gridline.h{left:0;right:0;height:1px;transform:translateY(-50%)}
 .bar{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
 .count{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;margin-right:auto;white-space:nowrap}
 button{
@@ -104,7 +104,7 @@ button:disabled{opacity:.35;pointer-events:none}
 [hidden]{display:none!important}
 .app.wide main{grid-template-rows:1fr;grid-template-columns:auto 1fr;gap:20px}
 .app.wide .stage{justify-self:start}
-.app.wide .bottom{height:100%}
+.app.wide .bottom{height:100%;min-width:240px}
 #gameView{display:contents}
 
 /* start screen */
@@ -720,8 +720,8 @@ button:disabled{opacity:.35;pointer-events:none}
       const barH = $('bar').offsetHeight || 46, msgH = $('msg').offsetHeight || 21;
       const chrome = 14 /* .bar の margin-top */ + barH + msgH + 12 /* main の row-gap */;
       const bs = wide
-        ? Math.min(H - hh - 130, W * 0.56, 784)
-        : Math.max(140, Math.min(W - 24, H - hh - chrome - panelMin - 36, 672));
+        ? Math.min(H - hh - 130, W * 0.62, 1200)
+        : Math.max(140, Math.min(W - 24, H - hh - chrome - panelMin - 36, 1200));
       u = Math.max(1 / dpr, Math.floor(bs * dpr / N) / dpr);
       const px = u * N;
       board.style.width = board.style.height = px + 'px';
