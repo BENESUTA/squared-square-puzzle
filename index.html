@@ -107,22 +107,22 @@ button:disabled{opacity:.35;pointer-events:none}
 .app.wide .bottom{height:100%;min-width:240px}
 #gameView{display:contents}
 
-/* board = 画面いっぱい: プレイ中はヘッダーを盤面の上に重ねる浮遊バーにし、
-   盤面自体を画面いっぱいに拡大する。トレイ/リザルトは盤面の下(スクロール)へ */
-.app.gaming{padding:0;max-width:none;gap:0}
-.app.gaming header{
+/* board = 画面いっぱい: 縦長画面(スマホ想定)のときだけ、ヘッダーを盤面の上に重ねる
+   浮遊バーにして盤面自体を画面いっぱいに拡大する。トレイ/リザルトは盤面の下(スクロール)へ。
+   横長(iPad 等の wide レイアウト)は元の「盤面+トレイを並べる」表示のまま変更しない。 */
+.app.gaming:not(.wide){padding:0;max-width:none;gap:0}
+.app.gaming:not(.wide) header{
   position:fixed;top:0;left:0;right:0;z-index:15;margin:0;
   padding:calc(8px + env(safe-area-inset-top,0px)) 14px 8px;
   background:linear-gradient(to bottom,rgba(0,0,0,.55),transparent);
   pointer-events:none;
 }
-.app.gaming header h1{font-size:14px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
-.app.gaming header .lead{display:none}
-.app.gaming header .time{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.app.gaming:not(.wide) header h1{font-size:14px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.app.gaming:not(.wide) header .lead{display:none}
+.app.gaming:not(.wide) header .time{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .app.gaming:not(.wide) main{display:flex;flex-direction:column;align-items:center;min-height:100dvh;gap:0}
 .app.gaming:not(.wide) .stage{flex:1;width:auto;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .app.gaming:not(.wide) .bottom{width:100%;margin:16px 0 calc(16px + env(safe-area-inset-bottom,0px));padding:0 12px}
-.app.gaming.wide main{padding-top:0}
 
 /* start screen */
 #startView{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:22px;max-width:480px;margin:0 auto;width:100%}
@@ -733,12 +733,13 @@ button:disabled{opacity:.35;pointer-events:none}
       const W = innerWidth, H = innerHeight, dpr = window.devicePixelRatio || 1;
       const wide = W >= 760 && W >= H * 1.1;
       app.classList.toggle('wide', wide);
-      // ヘッダーは盤面の上に重ねる浮遊バーになったため、高さを差し引く必要はない。
-      // トレイ/リザルト欄は盤面の下(スクロール領域)に出すため、盤面サイズには含めない。
+      // wide(iPad等の横並びレイアウト)はヘッダーが通常どおり場所を取るので高さを差し引く。
+      // 縦長レイアウトはヘッダーが盤面に重なる浮遊バーなので差し引かない。
+      const hh = head.offsetHeight || 70;
       const barH = $('bar').offsetHeight || 46, msgH = $('msg').offsetHeight || 21;
       const chrome = 14 /* .bar の margin-top */ + barH + msgH;
       const bs = wide
-        ? Math.min(H - 32, W * 0.62, 1200)
+        ? Math.min(H - hh - 130, W * 0.62, 1200)
         : Math.max(140, Math.min(W - 16, H - chrome - 16, 1200));
       u = Math.max(1 / dpr, Math.floor(bs * dpr / N) / dpr);
       const px = u * N;
