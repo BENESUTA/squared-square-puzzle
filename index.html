@@ -45,7 +45,9 @@ h1{margin:0;font-size:24px;font-weight:900;letter-spacing:.04em;line-height:1.1}
 .lead{margin:4px 0 0;color:var(--mute);font-size:13px;line-height:1.5;max-width:34em}
 .time{font-variant-numeric:tabular-nums;font-weight:700;font-size:22px;white-space:nowrap}
 main{flex:1;min-height:0;display:grid;grid-template-rows:auto 1fr;gap:12px}
-.stage{justify-self:center}
+.stage{justify-self:center;max-width:100%}
+.bottom{min-width:0;display:grid;--panel-min:190px;min-height:var(--panel-min)}
+.bottom > .tray, .bottom > .result{grid-area:1/1;min-height:0;height:100%}
 .board{
   position:relative;background-color:var(--board);
   background-image:
@@ -100,6 +102,7 @@ button:disabled{opacity:.35;pointer-events:none}
 [hidden]{display:none!important}
 .app.wide main{grid-template-rows:1fr;grid-template-columns:auto 1fr;gap:20px}
 .app.wide .stage{justify-self:start}
+.app.wide .bottom{height:100%}
 #gameView{display:contents}
 
 /* start screen */
@@ -198,17 +201,19 @@ button:disabled{opacity:.35;pointer-events:none}
         </div>
         <p class="msg" id="msg" aria-live="polite"></p>
       </section>
-      <section class="tray" id="tray" aria-label="残りの駒"></section>
-      <section class="result" id="result" hidden>
-        <h2>完成!</h2>
-        <p class="t" id="resultTime"></p>
-        <p id="resultFact"></p>
-        <div class="row">
-          <button id="nextBtn" type="button">次の盤面へ</button>
-          <button class="quiet" id="againBtn" type="button">もう一度あそぶ</button>
-          <button class="quiet" id="shareBtn" type="button">結果を共有</button>
-        </div>
-      </section>
+      <div class="bottom" id="bottom">
+        <section class="tray" id="tray" aria-label="残りの駒"></section>
+        <section class="result" id="result" hidden>
+          <h2>完成!</h2>
+          <p class="t" id="resultTime"></p>
+          <p id="resultFact"></p>
+          <div class="row">
+            <button id="nextBtn" type="button">次の盤面へ</button>
+            <button class="quiet" id="againBtn" type="button">もう一度あそぶ</button>
+            <button class="quiet" id="shareBtn" type="button">結果を共有</button>
+          </div>
+        </section>
+      </div>
     </main>
   </div>
 
@@ -673,7 +678,13 @@ button:disabled{opacity:.35;pointer-events:none}
     const wide = W >= 760 && W >= H * 1.1;
     app.classList.toggle('wide', wide);
     const hh = head.offsetHeight;
-    const bs = wide ? Math.min(H - hh - 130, W * 0.56, 784) : Math.min(W - 24, (H - hh - 40) * 0.56, 672);
+    // 盤面の下に出るトレイ/リザルト欄の最低の高さを確保してから、残りを盤面に割り当てる
+    const panelMin = parseFloat(getComputedStyle($('bottom')).getPropertyValue('--panel-min')) || 190;
+    const barH = $('bar').offsetHeight || 46, msgH = $('msg').offsetHeight || 21;
+    const chrome = 14 /* .bar の margin-top */ + barH + msgH + 12 /* main の row-gap */;
+    const bs = wide
+      ? Math.min(H - hh - 130, W * 0.56, 784)
+      : Math.max(140, Math.min(W - 24, H - hh - chrome - panelMin - 36, 672));
     u = Math.max(1 / dpr, Math.floor(bs * dpr / N) / dpr);
     const px = u * N;
     board.style.width = board.style.height = px + 'px';
