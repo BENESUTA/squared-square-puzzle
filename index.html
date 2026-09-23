@@ -674,23 +674,34 @@ button:disabled{opacity:.35;pointer-events:none}
   /* ---- layout: 1マス = 端末ピクセルの整数倍にそろえ、グリッドと駒の縁を一致させる ---- */
   function fit() {
     if (gameView.hidden) return;
-    const W = innerWidth, H = innerHeight, dpr = window.devicePixelRatio || 1;
-    const wide = W >= 760 && W >= H * 1.1;
-    app.classList.toggle('wide', wide);
-    const hh = head.offsetHeight;
-    // 盤面の下に出るトレイ/リザルト欄の最低の高さを確保してから、残りを盤面に割り当てる
-    const panelMin = parseFloat(getComputedStyle($('bottom')).getPropertyValue('--panel-min')) || 190;
-    const barH = $('bar').offsetHeight || 46, msgH = $('msg').offsetHeight || 21;
-    const chrome = 14 /* .bar の margin-top */ + barH + msgH + 12 /* main の row-gap */;
-    const bs = wide
-      ? Math.min(H - hh - 130, W * 0.56, 784)
-      : Math.max(140, Math.min(W - 24, H - hh - chrome - panelMin - 36, 672));
-    u = Math.max(1 / dpr, Math.floor(bs * dpr / N) / dpr);
-    const px = u * N;
-    board.style.width = board.style.height = px + 'px';
-    stage.style.width = px + 'px';
-    board.style.backgroundSize = u + 'px ' + u + 'px';
-    board.style.setProperty('--lw', Math.max(1 / dpr, Math.min(1, u / 3)) + 'px');
+    try {
+      const W = innerWidth, H = innerHeight, dpr = window.devicePixelRatio || 1;
+      const wide = W >= 760 && W >= H * 1.1;
+      app.classList.toggle('wide', wide);
+      const hh = head.offsetHeight || 70;
+      // 盤面の下に出るトレイ/リザルト欄の最低の高さ(.bottom の --panel-min と合わせる)
+      const panelMin = 190;
+      const barH = $('bar').offsetHeight || 46, msgH = $('msg').offsetHeight || 21;
+      const chrome = 14 /* .bar の margin-top */ + barH + msgH + 12 /* main の row-gap */;
+      const bs = wide
+        ? Math.min(H - hh - 130, W * 0.56, 784)
+        : Math.max(140, Math.min(W - 24, H - hh - chrome - panelMin - 36, 672));
+      u = Math.max(1 / dpr, Math.floor(bs * dpr / N) / dpr);
+      const px = u * N;
+      board.style.width = board.style.height = px + 'px';
+      stage.style.width = px + 'px';
+      board.style.backgroundSize = u + 'px ' + u + 'px';
+      board.style.setProperty('--lw', Math.max(1 / dpr, Math.min(1, u / 3)) + 'px');
+    } catch (e) {
+      // 計算に失敗しても盤面が完全に消えないよう、最低限の大きさで表示する
+      console.error('fit() failed, using fallback size', e);
+      const W = innerWidth || 360;
+      const fallback = Math.max(140, Math.min(W - 24, 360));
+      u = Math.max(0.5, Math.floor(fallback / N * 2) / 2);
+      const px = u * N;
+      board.style.width = board.style.height = px + 'px';
+      stage.style.width = px + 'px';
+    }
     renderAll();
   }
   addEventListener('resize', fit);
