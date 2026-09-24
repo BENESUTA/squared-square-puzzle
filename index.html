@@ -105,7 +105,7 @@ button:disabled{opacity:.35;pointer-events:none}
 [hidden]{display:none!important}
 .app.wide main{flex-direction:row;gap:20px}
 .app.wide .stage{flex:1;min-width:0}
-.app.wide .bottom{flex:0 1 320px;min-width:220px;height:auto;align-self:stretch}
+.app.wide .bottom{flex:0 1 320px;min-width:220px;max-width:560px;height:auto;align-self:stretch}
 #gameView{display:contents}
 
 /* start screen */
@@ -259,7 +259,7 @@ button:disabled{opacity:.35;pointer-events:none}
   const PAL = ['#62AEA4','#E2A85A','#DB7A6D','#7F97C8','#A9C47D','#C892B8','#9F9A88'];
   const $ = id => document.getElementById(id);
   const app = $('app'), head = $('head'), board = $('board'), tray = $('tray'),
-        preview = $('preview'), stage = $('stage'), boardSlot = $('boardSlot'), result = $('result'),
+        preview = $('preview'), stage = $('stage'), boardSlot = $('boardSlot'), bottomEl = $('bottom'), result = $('result'),
         freeSheet = $('freeSheet'), randomSheet = $('randomSheet'),
         startView = $('startView'), gameView = $('gameView');
 
@@ -495,6 +495,7 @@ button:disabled{opacity:.35;pointer-events:none}
   const key = (s, x, y) => s + ',' + x + ',' + y;
   function hint() {
     if (won) return;
+    hintCount++;
     const placed = pieces.filter(p => p.pos);
     const pk = new Set(placed.map(p => key(p.s, p.pos.x, p.pos.y)));
     let best = null, bestScore = -1;
@@ -515,7 +516,6 @@ button:disabled{opacity:.35;pointer-events:none}
     if (!target) return;
     startTimer();
     recordMove(p, null, { x: target[1], y: target[2] });
-    hintCount++;
     place(p, { x: target[1], y: target[2] });
     if (!won) say(p.s + ' の駒を正しい位置に置きました。');
   }
@@ -716,11 +716,19 @@ button:disabled{opacity:.35;pointer-events:none}
     const W = innerWidth, H = innerHeight;
     const wide = W >= 760 && W >= H * 1.1;
     app.classList.toggle('wide', wide);
-    // board-slot の実際に描画された幅・高さのうち、小さい方に合わせて盤面を正方形にする
-    // (先読みでの予測計算だと、環境によって実際の余白と食い違うことがあったため)
+    // まず stage・トレイ側とも既定のCSSに戻した状態で、stage が最大でどこまで使えるかを測る
+    stage.style.flex = '';
+    bottomEl.style.flexBasis = '';
     const rect = boardSlot.getBoundingClientRect();
     const size = Math.max(100, Math.floor(Math.min(rect.width, rect.height)));
     board.style.width = board.style.height = size + 'px';
+    // 横並び(wide)のときは、盤面の実際のサイズに stage の幅を合わせ、
+    // 余った横幅は隣のトレイ側に回す(stage だけ無駄に広くならないように)
+    if (wide) {
+      stage.style.flex = '0 0 ' + size + 'px';
+      const extra = Math.max(0, rect.width - size);
+      bottomEl.style.flexBasis = Math.min(560, 320 + extra) + 'px';
+    }
     u = size / N;
     renderAll();
   }
