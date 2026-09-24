@@ -14,7 +14,6 @@
   --board:#F8FAFA; --grid:rgba(26,42,49,.16); --frame:#1A2A31;
   --ok:#2E9E6B; --bad:#D6483E; --btn:#1A2A31; --btnink:#F2F6F7; --tileink:#1A2A31;
   --sheet:#F6F9F9; --line:rgba(26,42,49,.16);
-  --lw:1px;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px);
@@ -34,27 +33,29 @@
 html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
 *,*::before,*::after{box-sizing:border-box}
 body{
-  margin:0;height:100%;background:var(--bg);color:var(--ink);
+  margin:0;min-height:100vh;min-height:100dvh;background:var(--bg);color:var(--ink);
   font-family:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
   font-weight:500;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
-  overflow:hidden;
+  overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;
 }
-.app{height:100%;display:flex;flex-direction:column;gap:10px;padding:12px;max-width:1240px;margin:0 auto}
+.app{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;gap:10px;padding:12px;max-width:1240px;margin:0 auto}
 header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
 h1{margin:0;font-size:24px;font-weight:900;letter-spacing:.04em;line-height:1.1}
 .lead{margin:4px 0 0;color:var(--mute);font-size:13px;line-height:1.5;max-width:34em}
 .time{font-variant-numeric:tabular-nums;font-weight:700;font-size:22px;white-space:nowrap}
-main{flex:1;min-height:0;display:grid;grid-template-rows:auto 1fr;gap:12px}
-.stage{justify-self:center}
+main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
+.stage{flex:1;min-height:0;display:flex;flex-direction:column;min-width:0}
+.board-slot{flex:1;min-height:120px;min-width:0;display:flex;justify-content:center;align-items:center}
+.bottom{min-width:0;flex:none;min-height:190px}
+.bottom > .tray, .bottom > .result{min-height:0}
 .board{
   position:relative;background-color:var(--board);
-  background-image:
-    linear-gradient(to right,var(--grid) var(--lw),transparent var(--lw)),
-    linear-gradient(to bottom,var(--grid) var(--lw),transparent var(--lw));
-  background-position:0 0;
   box-shadow:0 0 0 4px var(--frame);touch-action:none;
 }
-.bar{display:flex;align-items:center;gap:8px;margin-top:14px}
+.gridline{position:absolute;background:var(--grid);pointer-events:none}
+.gridline.v{top:0;bottom:0;width:1px;transform:translateX(-50%)}
+.gridline.h{left:0;right:0;height:1px;transform:translateY(-50%)}
+.bar{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
 .count{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;margin-right:auto;white-space:nowrap}
 button{
   font:inherit;font-weight:700;font-size:14px;border:0;border-radius:8px;
@@ -62,6 +63,11 @@ button{
 }
 button.quiet{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--mute)}
 button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
+button:disabled{opacity:.35;pointer-events:none}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translate(-50%,12px);
+  background:var(--frame);color:var(--btnink,#F2F6F7);font-size:13px;font-weight:700;padding:9px 16px;border-radius:20px;
+  opacity:0;transition:opacity .2s ease,transform .2s ease;pointer-events:none;z-index:200;white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,0)}
 .msg{min-height:1.5em;margin:6px 0 0;font-size:13px;color:var(--mute)}
 .tray{
   background:var(--panel);border-radius:10px;padding:10px;overflow:auto;
@@ -92,11 +98,32 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
 .result .t{font-size:16px;font-variant-numeric:tabular-nums;margin:0 0 12px;font-weight:700}
 .result p{margin:0 0 14px;line-height:1.7;font-size:14px;max-width:34em}
 .result .row{display:flex;gap:8px;flex-wrap:wrap}
+.shareLabel{margin:16px 0 8px!important;font-size:12.5px;font-weight:700;color:var(--mute)}
+.sns{min-width:84px}
+#shareX{background:#000;color:#fff;box-shadow:none}
+#shareLine{background:#06C755;color:#fff;box-shadow:none}
 [hidden]{display:none!important}
-.app.wide main{grid-template-rows:1fr;grid-template-columns:auto 1fr;gap:20px}
-.app.wide .stage{justify-self:start}
+.app.wide main{flex-direction:row;gap:20px}
+.app.wide .stage{flex:1;min-width:0}
+.app.wide .bottom{flex:0 1 320px;min-width:220px;height:auto;align-self:stretch}
+#gameView{display:contents}
 
-/* board picker */
+/* start screen */
+#startView{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:22px;max-width:480px;margin:0 auto;width:100%}
+.startHead h1{font-size:28px}
+.startHead .lead{font-size:14px;max-width:none}
+.startStatus{color:var(--mute);font-size:13px}
+.modeCards{display:grid;gap:12px}
+.modeCard{
+  display:block;width:100%;text-align:left;background:var(--panel);color:var(--ink);
+  border-radius:14px;padding:18px 20px;box-shadow:none;min-height:0;
+}
+.mc-t{display:block;font-size:18px;font-weight:900;margin-bottom:4px}
+.mc-d{display:block;font-size:13px;color:var(--mute);line-height:1.6;font-weight:500}
+.startCredit{margin:0;font-size:11.5px;line-height:1.6;color:var(--mute)}
+.startCredit a{color:inherit}
+
+/* sheets */
 .sheet{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
 .sheet-body{
   background:var(--sheet);width:min(560px,100%);max-height:88%;overflow:auto;
@@ -106,15 +133,29 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
 .sheet-head h2{margin:0;font-size:20px;font-weight:900}
 .sheet .hint{margin:0 0 10px;font-size:12.5px;color:var(--mute)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.chip{
+  font:inherit;font-weight:700;font-size:13px;border:0;border-radius:999px;
+  padding:7px 14px;background:transparent;color:var(--ink);
+  box-shadow:inset 0 0 0 1.5px var(--line);cursor:pointer;min-height:0;
+}
+.chip[aria-pressed="true"]{background:var(--ok);color:#fff;box-shadow:none}
 #plist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
 .pitem{
   display:block;width:100%;text-align:left;background:transparent;color:var(--ink);
-  border-radius:10px;padding:10px 12px;box-shadow:inset 0 0 0 1.5px var(--line);font-weight:500;
+  border-radius:10px;padding:10px 12px;box-shadow:inset 0 0 0 1.5px var(--line);font-weight:500;min-height:0;
 }
 .pitem[aria-current="true"]{box-shadow:inset 0 0 0 2.5px var(--ok)}
 .pitem .n{display:flex;justify-content:space-between;gap:8px;font-weight:900;font-size:16px}
 .pitem .n small{font-weight:700;font-size:12.5px;color:var(--ok);white-space:nowrap}
 .pitem .d{display:block;margin-top:3px;font-size:12.5px;line-height:1.55;color:var(--mute)}
+.empty{color:var(--mute);font-size:13px;padding:8px 2px}
+.tutoRow{display:flex;align-items:center;gap:9px;font-size:13.5px;margin:2px 0 16px;cursor:pointer}
+.tutoRow input{width:18px;height:18px;flex:none}
+.linklike{
+  display:inline-block;background:transparent;box-shadow:none;color:var(--mute);
+  text-decoration:underline;padding:8px 2px;min-height:0;font-weight:500;font-size:13px;margin-top:8px;
+}
 .credit{margin:14px 0 0;font-size:12px;line-height:1.6;color:var(--mute)}
 .credit a{color:inherit}
 @media (prefers-reduced-motion: reduce){.sweep .tile,.tile.wrong{animation:none}}
@@ -122,62 +163,116 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
 </head>
 <body>
 <div class="app" id="app">
-  <header id="head">
-    <div>
+
+  <div id="startView">
+    <div class="startHead">
       <h1>正方形の正方形</h1>
-      <p class="lead" id="lead"></p>
+      <p class="lead">大きさの違う正方形だけで、大きな正方形をすき間なく埋めるパズルです。</p>
     </div>
-    <div class="time" id="time">0:00</div>
-  </header>
-  <main>
-    <section class="stage" id="stage">
-      <div class="board" id="board"><div class="preview" id="preview" hidden></div></div>
-      <div class="bar">
-        <span class="count" id="count" aria-live="polite">0 / 0</span>
-        <button class="quiet" id="menuBtn" type="button">盤面</button>
-        <button class="quiet" id="hintBtn" type="button">ヒント</button>
-        <button class="quiet" id="resetBtn" type="button">リセット</button>
+    <p class="startStatus" id="startStatus">盤面データを読み込み中…</p>
+    <div class="modeCards" id="modeCards" hidden>
+      <button class="modeCard" id="freeModeBtn" type="button">
+        <span class="mc-t">自由に選ぶ</span>
+        <span class="mc-d">難易度(正方形の枚数)や一覧から、好きな盤面を選んで遊びます。</span>
+      </button>
+      <button class="modeCard" id="randomModeBtn" type="button">
+        <span class="mc-t">ランダムで遊ぶ</span>
+        <span class="mc-d">難易度を選ぶと、そこからおまかせで1問出題します。</span>
+      </button>
+    </div>
+    <p class="startCredit">盤面データ(puzzles.json)の出典: <a href="http://www.squaring.net/" target="_blank" rel="noopener">squaring.net</a> の Elements / Bouwkamp Code。</p>
+  </div>
+
+  <div id="gameView" hidden>
+    <header id="head">
+      <div>
+        <h1>正方形の正方形</h1>
+        <p class="lead" id="lead"></p>
       </div>
-      <p class="msg" id="msg" aria-live="polite"></p>
-    </section>
-    <section class="tray" id="tray" aria-label="残りの駒"></section>
-    <section class="result" id="result" hidden>
-      <h2>完成!</h2>
-      <p class="t" id="resultTime"></p>
-      <p id="resultFact"></p>
-      <div class="row">
-        <button id="nextBtn" type="button">次の盤面へ</button>
-        <button class="quiet" id="againBtn" type="button">もう一度あそぶ</button>
+      <div class="time" id="time">0:00</div>
+    </header>
+    <main>
+      <section class="stage" id="stage">
+        <div class="board-slot" id="boardSlot">
+          <div class="board" id="board"><div class="preview" id="preview" hidden></div></div>
+        </div>
+        <div class="bar">
+          <span class="count" id="count" aria-live="polite">0 / 0</span>
+          <button class="quiet" id="undoBtn" type="button">一手戻す</button>
+          <button class="quiet" id="redoBtn" type="button">やり直す</button>
+          <button class="quiet" id="hintBtn" type="button">ヒント</button>
+          <button class="quiet" id="menuBtn" type="button">盤面</button>
+          <button class="quiet" id="resetBtn" type="button">リセット</button>
+        </div>
+        <p class="msg" id="msg" aria-live="polite"></p>
+      </section>
+      <div class="bottom" id="bottom">
+        <section class="tray" id="tray" aria-label="残りの駒"></section>
+        <section class="result" id="result" hidden>
+          <h2>完成!</h2>
+          <p class="t" id="resultTime"></p>
+          <p id="resultFact"></p>
+          <div class="row">
+            <button id="nextBtn" type="button">次の盤面へ</button>
+            <button class="quiet" id="againBtn" type="button">もう一度あそぶ</button>
+          </div>
+          <p class="shareLabel">結果をシェア</p>
+          <div class="row">
+            <button class="quiet sns" id="shareX" type="button">X</button>
+            <button class="quiet sns" id="shareLine" type="button">LINE</button>
+            <button class="quiet sns" id="shareCopy" type="button">リンクをコピー</button>
+          </div>
+        </section>
       </div>
-    </section>
-  </main>
+    </main>
+  </div>
+
+</div>
+<div class="toast" id="toast" aria-live="polite"></div>
+
+<div class="sheet" id="freeSheet" hidden role="dialog" aria-modal="true" aria-label="盤面を選ぶ">
+  <div class="sheet-body">
+    <div class="sheet-head"><h2>盤面を選ぶ</h2><button class="quiet" id="closeFreeSheet" type="button">閉じる</button></div>
+    <p class="hint">盤面を変えると、いまの配置は消えます。</p>
+    <div class="chips" id="freeChips"></div>
+    <ul id="plist"></ul>
+    <p class="credit">盤面データの出典: <a href="http://www.squaring.net/" target="_blank" rel="noopener">squaring.net</a>(Stuart Anderson ほか)に掲載された完全正方形分割のリスト(Elements / Bouwkamp Code)。</p>
+    <button class="linklike" id="freeBackBtn" type="button">◀ スタート画面へ</button>
+  </div>
 </div>
 
-<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-label="盤面を選ぶ">
+<div class="sheet" id="randomSheet" hidden role="dialog" aria-modal="true" aria-label="ランダムで遊ぶ">
   <div class="sheet-body">
-    <div class="sheet-head"><h2>盤面を選ぶ</h2><button class="quiet" id="closeSheet" type="button">閉じる</button></div>
-    <p class="hint">盤面を変えると、いまの配置は消えます。</p>
-    <ul id="plist"></ul>
-    <p class="credit">盤面データの出典: <a href="http://www.squaring.net/" target="_blank" rel="noopener">squaring.net</a>(Stuart Anderson ほか)に掲載された完全正方形分割のリスト。駒の大きさの組から、配置をこのゲーム用に復元しています。</p>
+    <div class="sheet-head"><h2>ランダムで遊ぶ</h2><button class="quiet" id="closeRandomSheet" type="button">閉じる</button></div>
+    <p class="hint">難易度(正方形の枚数)を選んでください。</p>
+    <div class="chips" id="randomChips"></div>
+    <label class="tutoRow"><input type="checkbox" id="tutoCheck">ロイドのキルト(チュートリアル)から始める</label>
+    <button id="randomStartBtn" type="button">はじめる</button>
+    <button class="linklike" id="randomBackBtn" type="button">◀ スタート画面へ</button>
   </div>
 </div>
 
 <script>
-(() => {
-  /* 盤面データ: [size, x, y] の配列。sols は回転・反転を除いた解の一覧 */
-  const PUZZLES = [{"id":"quilt13","name":"ロイドのキルト 13×13","desc":"11枚。同じ大きさの駒を含む入門盤面。ロイドが1900年代に出題した「継ぎはぎキルト」で、解は1つ。","fact":"同じ大きさの駒を許すと、13×13は最小11枚で埋まります。この分割は唯一の解で、ロイドが出題し、ドゥーデニーが「パーキンス夫人のキルト」として広めました。","side":13,"sols":[[[1,2,3],[1,5,6],[2,0,3],[2,0,5],[2,5,4],[3,0,0],[3,2,4],[4,3,0],[6,0,7],[6,7,0],[7,6,6]]]},{"id":"s21_112","name":"21枚・112×112","desc":"完全正方形分割で最小の枚数。1978年、デュイヴェスティンが発見。解は1つだけ。","fact":"大きさがすべて違う正方形での分割は、21枚が最小です(デュイヴェスティン、1978年)。この21枚の解は、回転・反転を除いてただ1つです。","side":112,"sols":[[[2,47,50],[4,79,75],[6,24,46],[7,42,52],[8,19,27],[9,49,50],[11,19,35],[15,47,35],[16,42,59],[17,30,35],[18,24,52],[19,0,27],[24,0,46],[25,58,50],[27,0,0],[29,83,50],[33,79,79],[35,27,0],[37,42,75],[42,0,70],[50,62,0]]]},{"id":"s22_110A","name":"22枚・110×110(A)","desc":"一辺110は完全正方形分割の最小サイズ。1978年、デュイヴェスティンが発見。","fact":"一辺110は、完全正方形分割の最小サイズです。該当する分割は、この盤面を含む3つだけ(ガンビーニが1999年に証明)。","side":110,"sols":[[[2,24,26],[3,92,18],[4,67,17],[6,54,30],[7,60,30],[8,46,28],[12,83,21],[13,54,17],[14,46,36],[15,95,18],[16,67,21],[17,54,0],[18,92,0],[21,71,0],[22,24,28],[23,60,37],[24,0,26],[26,0,0],[27,83,33],[28,26,0],[50,60,60],[60,0,50]]]},{"id":"s22_110B","name":"22枚・110×110(B)","desc":"110Aと同じ一辺110の別解。1978年、ウィルコックスが発見。","fact":"一辺110は、完全正方形分割の最小サイズです。該当する分割は、この盤面を含む3つだけ(ガンビーニが1999年に証明)。","side":110,"sols":[[[1,17,18],[2,26,84],[3,30,47],[4,33,19],[6,30,50],[8,28,56],[9,21,47],[12,21,35],[14,36,50],[16,17,19],[17,0,18],[18,0,0],[19,18,0],[21,0,35],[22,28,64],[23,37,0],[24,26,86],[26,0,84],[27,33,23],[28,0,56],[50,60,0],[60,50,50]]]},{"id":"s23_110","name":"23枚・110×110","desc":"一辺110の3つめ。1990年、デュイヴェスティンの全数探索で見つかった。","fact":"一辺110の完全正方形分割は、22枚の2つとこの23枚の計3つだけです。枚数が多い分割のほうが、辺が小さくなることもあります。","side":110,"sols":[[[1,43,45],[2,43,43],[3,40,43],[4,40,46],[5,40,38],[7,38,31],[8,65,73],[10,59,31],[12,28,38],[13,65,60],[14,45,31],[15,44,45],[16,28,50],[19,59,41],[21,44,60],[28,0,38],[29,44,81],[31,38,0],[32,78,41],[37,73,73],[38,0,0],[41,69,0],[44,0,66]]]},{"id":"s24_120","name":"24枚・120×120","desc":"24枚の単純完全正方形分割のうち一辺が最小。1991年、デュイヴェスティン。","fact":"24枚の完全正方形分割のうち、一辺が最も小さい(120)分割です。","side":120,"sols":[[[3,36,50],[4,19,49],[5,14,49],[6,40,34],[8,79,71],[9,14,40],[10,36,40],[12,62,34],[13,23,40],[14,0,40],[15,47,73],[16,46,34],[17,62,71],[19,0,54],[20,19,53],[23,39,50],[25,62,46],[32,47,88],[33,87,46],[34,40,0],[40,0,0],[41,79,79],[46,74,0],[47,0,73]]]},{"id":"s22_139","name":"22枚・139×139","desc":"1990年の全数探索で見つかった22枚の分割のひとつ。","fact":"22枚の完全正方形分割は、デュイヴェスティンの探索で8つ見つかっています。","side":139,"sols":[[[1,29,30],[2,117,22],[3,61,32],[4,57,31],[7,57,35],[8,93,24],[10,64,32],[17,57,42],[18,101,24],[20,119,22],[21,80,59],[22,117,0],[24,93,0],[27,74,32],[28,29,31],[29,0,30],[30,0,0],[31,30,0],[32,61,0],[38,101,42],[59,80,80],[80,0,59]]]},{"id":"s22_147","name":"22枚・147×147(A)","desc":"1990年の全数探索で見つかった22枚の分割のひとつ。","fact":"22枚の完全正方形分割は、デュイヴェスティンの探索で8つ見つかっています。","side":147,"sols":[[[1,32,72],[3,63,121],[4,99,48],[5,42,47],[8,25,64],[9,33,64],[17,25,47],[20,43,104],[21,42,52],[23,43,124],[25,0,47],[26,66,121],[29,63,92],[31,32,73],[32,0,72],[40,63,52],[43,0,104],[44,103,48],[47,0,0],[48,99,0],[52,47,0],[55,92,92]]]},{"id":"s22_147b","name":"22枚・147×147(B)","desc":"一辺が同じ147の別の分割。駒の組み合わせは(A)と違います。","fact":"22枚の完全正方形分割は、デュイヴェスティンの探索で8つ見つかっています。","side":147,"sols":[[[2,43,45],[4,128,92],[8,84,47],[10,105,115],[11,121,81],[12,93,113],[15,132,81],[19,128,96],[21,84,92],[22,93,125],[23,105,92],[25,59,88],[26,121,55],[32,115,115],[34,59,113],[37,84,55],[41,43,47],[43,0,45],[45,0,0],[47,45,0],[55,92,0],[59,0,88]]]},{"id":"s22_154","name":"22枚・154×154","desc":"1990年の全数探索で見つかった22枚の分割のひとつ。","fact":"22枚の完全正方形分割は、デュイヴェスティンの探索で8つ見つかっています。","side":154,"sols":[[[2,67,68],[5,26,68],[9,93,61],[11,102,113],[16,67,105],[17,50,104],[19,83,105],[21,26,47],[22,47,46],[24,69,46],[26,0,47],[30,83,124],[31,0,73],[33,50,121],[35,67,70],[36,31,68],[41,113,113],[46,47,0],[47,0,0],[50,0,104],[52,102,61],[61,93,0]]]},{"id":"s22_192","name":"22枚・192×192","desc":"22枚の分割のうち一辺が最大。1978年、デュイヴェスティンが発見。","fact":"22枚の完全正方形分割は、デュイヴェスティンの探索で8つ見つかっています。","side":192,"sols":[[[4,82,86],[8,127,49],[9,146,85],[10,146,94],[12,47,121],[14,113,90],[17,113,104],[19,127,85],[26,130,104],[28,127,57],[31,82,90],[35,47,86],[36,156,94],[37,155,57],[41,86,49],[47,0,86],[49,86,0],[57,135,0],[59,0,133],[62,130,130],[71,59,121],[86,0,0]]]},{"id":"c24_175","name":"24枚・175×175(合成)","desc":"内側に小さな長方形の分割を含む「合成」型。1948年、ウィルコックスが発見。","fact":"内側に長方形の分割を含む「合成」型では、この24枚が最小です。長方形の向きを変えると、同じ駒で別の完成形が4通りできます。","side":175,"sols":[[[1,19,52],[2,95,140],[3,20,52],[4,19,48],[5,14,48],[8,124,132],[9,14,39],[14,0,39],[16,23,39],[18,20,55],[20,0,53],[29,95,111],[30,94,81],[31,64,111],[33,64,142],[35,97,140],[38,0,73],[39,0,0],[43,132,132],[51,124,81],[55,39,0],[56,38,55],[64,0,111],[81,94,0]],[[1,19,58],[2,95,140],[3,20,56],[4,19,59],[5,14,58],[8,124,132],[9,14,63],[14,0,58],[16,23,56],[18,20,38],[20,0,38],[29,95,111],[30,94,81],[31,64,111],[33,64,142],[35,97,140],[38,0,0],[39,0,72],[43,132,132],[51,124,81],[55,39,56],[56,38,0],[64,0,111],[81,94,0]],[[1,52,74],[2,140,95],[3,52,71],[4,48,71],[5,48,75],[8,132,124],[9,39,71],[14,39,80],[16,39,55],[18,55,56],[20,53,74],[29,111,95],[30,81,94],[31,111,64],[33,142,64],[35,140,97],[38,73,56],[39,0,55],[43,132,132],[51,81,124],[55,0,0],[56,55,0],[64,111,0],[81,0,94]],[[1,58,74],[2,140,95],[3,56,71],[4,59,71],[5,58,75],[8,132,124],[9,63,71],[14,58,80],[16,56,55],[18,38,56],[20,38,74],[29,111,95],[30,81,94],[31,111,64],[33,142,64],[35,140,97],[38,0,56],[39,72,55],[43,132,132],[51,81,124],[55,56,0],[56,0,0],[64,111,0],[81,0,94]]]}];
+(async () => {
+  const TUTORIAL_ID = 'quilt13';
+  let PUZZLES = [];
   const PAL = ['#62AEA4','#E2A85A','#DB7A6D','#7F97C8','#A9C47D','#C892B8','#9F9A88'];
   const $ = id => document.getElementById(id);
   const app = $('app'), head = $('head'), board = $('board'), tray = $('tray'),
-        preview = $('preview'), stage = $('stage'), result = $('result'), sheet = $('sheet');
+        preview = $('preview'), stage = $('stage'), boardSlot = $('boardSlot'), result = $('result'),
+        freeSheet = $('freeSheet'), randomSheet = $('randomSheet'),
+        startView = $('startView'), gameView = $('gameView');
 
   let PZ = null, N = 112, u = 3, pieces = [];
   let drag = null, startedAt = null, timerId = null, won = false, resetTimer = null;
+  let history = [], redoStack = [], hintCount = 0, finalMs = 0, toastTimer = null;
+  let mode = 'free';
 
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
   };
+  let difficulty = store.get('sqsq-difficulty') || 'all';
 
   const trayPx = s => Math.max(26, Math.round(s * u * 0.55));
   const clamp = (v, s) => Math.max(0, Math.min(N - s, v));
@@ -210,6 +305,7 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
     el.setAttribute('aria-label', s + 'の正方形');
     const sp = document.createElement('span'); sp.textContent = s; el.appendChild(sp);
     const p = { s, pos: null, el };
+    el.__size = s;
     el.addEventListener('pointerdown', e => down(e, p));
     return p;
   }
@@ -226,13 +322,38 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
     el.className = 'tile in-tray';
     el.style.left = el.style.top = '';
     el.style.width = el.style.height = px + 'px';
-    tray.appendChild(el);
+    insertSorted(el);
+  }
+  /* 大きい順を保ったままトレイに挿入する(同じ大きさのときは末尾へ) */
+  function insertSorted(el) {
+    let before = null;
+    for (const child of tray.children) {
+      if (child === el) continue;
+      if (child.__size < el.__size) { before = child; break; }
+    }
+    before ? tray.insertBefore(el, before) : tray.appendChild(el);
   }
   function renderAll() {
     for (const p of pieces) {
       if (drag && drag.visual && drag.p === p) continue;
       p.pos ? toBoard(p) : toTray(p);
     }
+  }
+  /* 盤面のマス目を、駒と同じ「%指定のabsolute div」で描画する(背景グラデーションだと
+     一部のブラウザで描画・再描画されないことがあったための対応) */
+  function drawGrid() {
+    board.querySelectorAll('.gridline').forEach(el => el.remove());
+    const frag = document.createDocumentFragment();
+    for (let i = 1; i < N; i++) {
+      const pct = (i / N * 100) + '%';
+      const v = document.createElement('div');
+      v.className = 'gridline v'; v.style.left = pct;
+      frag.appendChild(v);
+      const h = document.createElement('div');
+      h.className = 'gridline h'; h.style.top = pct;
+      frag.appendChild(h);
+    }
+    board.insertBefore(frag, board.firstChild);
   }
 
   const placedCount = () => pieces.filter(p => p.pos).length;
@@ -310,13 +431,53 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
     window.removeEventListener('pointercancel', cancel);
     preview.hidden = true;
     const p = d.p;
-    if (!d.visual) { toTray(p); refreshCount(); say('駒をトレイに戻しました。'); return; }
-    if (!cancelled && d.snap) { place(p, d.snap); if (!won) say(''); }
+    if (!d.visual) {
+      if (d.from) recordMove(p, d.from, null);
+      toTray(p); refreshCount(); say('駒をトレイに戻しました。');
+      return;
+    }
+    if (!cancelled && d.snap) {
+      const changed = !d.from || d.from.x !== d.snap.x || d.from.y !== d.snap.y;
+      if (changed) recordMove(p, d.from, d.snap);
+      place(p, d.snap); if (!won) say('');
+    }
     else if (d.from && (cancelled || d.near)) { place(p, d.from); say('そこには置けません。元の位置に戻しました。'); }
-    else { toTray(p); refreshCount(); }
+    else { if (d.from) recordMove(p, d.from, null); toTray(p); refreshCount(); }
   }
   const up = e => finish(e, false);
   const cancel = e => finish(e, true);
+
+  /* ---- undo / redo ---- */
+  function recordMove(p, from, to) {
+    history.push({ p, from: from ? { ...from } : null, to: to ? { ...to } : null });
+    redoStack = [];
+    updateHistoryBtns();
+  }
+  function updateHistoryBtns() {
+    $('undoBtn').disabled = won || history.length === 0;
+    $('redoBtn').disabled = won || redoStack.length === 0;
+  }
+  function applyTo(p, pos) {
+    if (pos) { p.pos = { ...pos }; toBoard(p); } else { toTray(p); }
+    refreshCount();
+  }
+  function undo() {
+    if (won || drag || !history.length) return;
+    const entry = history.pop();
+    redoStack.push(entry);
+    applyTo(entry.p, entry.from);
+    updateHistoryBtns();
+    say('ひとつ前の状態に戻しました。');
+  }
+  function redo() {
+    if (won || drag || !redoStack.length) return;
+    const entry = redoStack.pop();
+    history.push(entry);
+    applyTo(entry.p, entry.to);
+    updateHistoryBtns();
+    say('操作をやり直しました。');
+    if (pieces.every(q => q.pos)) win();
+  }
 
   /* ---- hint ---- */
   function transformed() {
@@ -353,6 +514,8 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
     const target = best.find(([s, x, y]) => s === p.s && !pk.has(key(s, x, y)));
     if (!target) return;
     startTimer();
+    recordMove(p, null, { x: target[1], y: target[2] });
+    hintCount++;
     place(p, { x: target[1], y: target[2] });
     if (!won) say(p.s + ' の駒を正しい位置に置きました。');
   }
@@ -360,13 +523,15 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
   /* ---- win / reset ---- */
   function win() {
     won = true; stopTimer();
+    updateHistoryBtns();
     const ms = Date.now() - (startedAt || Date.now());
+    finalMs = ms;
     $('time').textContent = fmt(ms);
     let extra = '';
     const bk = 'sqsq-best-' + PZ.id, prev = parseInt(store.get(bk) || '', 10);
     if (!prev || ms < prev) { store.set(bk, String(ms)); extra = prev ? '(自己ベスト更新)' : ''; }
     else extra = '(自己ベスト ' + fmt(prev) + ')';
-    $('resultTime').textContent = 'タイム ' + fmt(ms) + ' ' + extra;
+    $('resultTime').textContent = 'タイム ' + fmt(ms) + ' ' + extra + ' ・ ヒント ' + hintCount + '回';
     $('resultFact').textContent = PZ.fact;
     pieces.forEach(p => p.el.style.setProperty('--d', (p.pos.x + p.pos.y) * (600 / N)));
     board.classList.add('sweep');
@@ -376,6 +541,8 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
   function reset() {
     pieces.forEach(p => { p.pos = null; });
     won = false; stopTimer(); startedAt = null;
+    history = []; redoStack = []; hintCount = 0;
+    updateHistoryBtns();
     $('time').textContent = '0:00';
     board.classList.remove('sweep');
     tray.hidden = false; result.hidden = true;
@@ -383,20 +550,45 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
     say('駒をドラッグして枠へ。置いた駒はタップで戻せます。');
   }
 
-  /* ---- puzzles ---- */
+  /* ---- puzzles / difficulty ---- */
+  function pieceCount(p) { return p.sols[0].length; }
+  function availableCounts() { return [...new Set(PUZZLES.map(pieceCount))].sort((a, b) => a - b); }
+  function matchesDifficulty(p) { return difficulty === 'all' || pieceCount(p) === Number(difficulty); }
+
+  function renderChips(container, onChange) {
+    container.textContent = '';
+    const mk = (val, label) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.textContent = label;
+      b.setAttribute('aria-pressed', String(difficulty === val));
+      b.addEventListener('click', () => { difficulty = val; store.set('sqsq-difficulty', val); onChange(); });
+      return b;
+    };
+    container.appendChild(mk('all', 'すべて'));
+    availableCounts().forEach(c => container.appendChild(mk(String(c), c + '枚')));
+  }
+  function refreshFreeChips() { renderChips($('freeChips'), () => { refreshFreeChips(); buildList(); }); }
+  function refreshRandomChips() { renderChips($('randomChips'), refreshRandomChips); }
+
   function loadPuzzle(id) {
     PZ = PUZZLES.find(p => p.id === id) || PUZZLES[0];
-    store.set('sqsq-last', PZ.id);
     N = PZ.side;
     pieces.forEach(p => p.el.remove());
     const sizes = PZ.sols[0].map(t => t[0]).sort((a, b) => b - a);
     pieces = sizes.map((s, i) => makeTile(s, i));
     $('lead').textContent = pieces.length + '枚の正方形で、' + N + '×' + N + 'の枠をすき間なく埋めよう。';
+    drawGrid();
     fit(); reset();
   }
   function buildList() {
     const ul = $('plist'); ul.textContent = '';
-    for (const P of PUZZLES) {
+    const list = PUZZLES.filter(matchesDifficulty);
+    if (!list.length) {
+      const li = document.createElement('li'); li.className = 'empty';
+      li.textContent = 'この難易度の盤面はありません。';
+      ul.appendChild(li); return;
+    }
+    for (const P of list) {
       const li = document.createElement('li');
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'pitem';
@@ -407,20 +599,107 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
       if (best) { const sm = document.createElement('small'); sm.textContent = 'ベスト ' + fmt(best); n.appendChild(sm); }
       const d = document.createElement('span'); d.className = 'd'; d.textContent = P.desc;
       b.append(n, d);
-      b.addEventListener('click', () => { closeSheet(); loadPuzzle(P.id); });
+      b.addEventListener('click', () => { closeFreeSheetFn(); enterGame(P.id, 'free'); });
       li.appendChild(b); ul.appendChild(li);
     }
   }
-  function openSheet() { buildList(); sheet.hidden = false; $('closeSheet').focus(); }
-  function closeSheet() { sheet.hidden = true; }
+  function openFreeSheet() { refreshFreeChips(); buildList(); freeSheet.hidden = false; $('closeFreeSheet').focus(); }
+  function closeFreeSheetFn() { freeSheet.hidden = true; }
 
-  $('menuBtn').addEventListener('click', openSheet);
-  $('closeSheet').addEventListener('click', closeSheet);
-  sheet.addEventListener('click', e => { if (e.target === sheet) closeSheet(); });
-  addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+  function randomPool() {
+    let pool = PUZZLES.filter(p => p.id !== TUTORIAL_ID && matchesDifficulty(p));
+    if (!pool.length) pool = PUZZLES.filter(p => p.id !== TUTORIAL_ID);
+    return pool;
+  }
+  function pickRandomId() {
+    const pool = randomPool();
+    return pool[Math.floor(Math.random() * pool.length)].id;
+  }
+  function openRandomSheet() {
+    refreshRandomChips();
+    $('tutoCheck').checked = !store.get('sqsq-tutorial-done');
+    randomSheet.hidden = false; $('closeRandomSheet').focus();
+  }
+  function closeRandomSheetFn() { randomSheet.hidden = true; }
+
+  function enterGame(id, m) {
+    mode = m;
+    startView.hidden = true;
+    gameView.hidden = false;
+    loadPuzzle(id);
+  }
+  function backToStart() {
+    closeFreeSheetFn(); closeRandomSheetFn();
+    gameView.hidden = true;
+    startView.hidden = false;
+  }
+
+  /* ---- share ---- */
+  function toast(t) {
+    const el = $('toast');
+    el.textContent = t;
+    clearTimeout(toastTimer);
+    el.classList.add('show');
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+  function shareUrl() {
+    const url = new URL(location.href);
+    url.searchParams.set('p', PZ.id);
+    return url.toString();
+  }
+  function shareMessage() {
+    return '正方形の正方形「' + PZ.name + '」を ' + fmt(finalMs) + '(ヒント' + hintCount + '回)でクリア!';
+  }
+  function shareText() {
+    return shareMessage() + '\n' + shareUrl();
+  }
+  function shareToX() {
+    const q = 'text=' + encodeURIComponent(shareMessage()) + '&url=' + encodeURIComponent(shareUrl());
+    window.open('https://twitter.com/intent/tweet?' + q, '_blank', 'noopener');
+  }
+  function shareToLine() {
+    const q = encodeURIComponent(shareText());
+    window.open('https://line.me/R/msg/text/?' + q, '_blank', 'noopener');
+  }
+  async function shareCopy() {
+    const text = shareText();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try { await navigator.clipboard.writeText(text); toast('結果をコピーしました'); return; } catch (_) {}
+    }
+    if (navigator.share) {
+      try { await navigator.share({ text }); return; } catch (_) {}
+    }
+    toast('この環境ではコピーできません');
+  }
+
+  $('freeModeBtn').addEventListener('click', openFreeSheet);
+  $('randomModeBtn').addEventListener('click', openRandomSheet);
+  $('closeFreeSheet').addEventListener('click', closeFreeSheetFn);
+  $('closeRandomSheet').addEventListener('click', closeRandomSheetFn);
+  $('freeBackBtn').addEventListener('click', backToStart);
+  $('randomBackBtn').addEventListener('click', backToStart);
+  freeSheet.addEventListener('click', e => { if (e.target === freeSheet) closeFreeSheetFn(); });
+  randomSheet.addEventListener('click', e => { if (e.target === randomSheet) closeRandomSheetFn(); });
+  addEventListener('keydown', e => { if (e.key === 'Escape') { closeFreeSheetFn(); closeRandomSheetFn(); } });
+  $('randomStartBtn').addEventListener('click', () => {
+    closeRandomSheetFn();
+    if ($('tutoCheck').checked) {
+      store.set('sqsq-tutorial-done', '1');
+      enterGame(TUTORIAL_ID, 'random');
+    } else {
+      enterGame(pickRandomId(), 'random');
+    }
+  });
+  $('menuBtn').addEventListener('click', () => { mode === 'random' ? openRandomSheet() : openFreeSheet(); });
   $('hintBtn').addEventListener('click', hint);
+  $('undoBtn').addEventListener('click', undo);
+  $('redoBtn').addEventListener('click', redo);
+  $('shareX').addEventListener('click', shareToX);
+  $('shareLine').addEventListener('click', shareToLine);
+  $('shareCopy').addEventListener('click', shareCopy);
   $('againBtn').addEventListener('click', reset);
   $('nextBtn').addEventListener('click', () => {
+    if (mode === 'random') { loadPuzzle(pickRandomId()); return; }
     const i = PUZZLES.findIndex(p => p.id === PZ.id);
     loadPuzzle(PUZZLES[(i + 1) % PUZZLES.length].id);
   });
@@ -433,24 +712,35 @@ button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
 
   /* ---- layout: 1マス = 端末ピクセルの整数倍にそろえ、グリッドと駒の縁を一致させる ---- */
   function fit() {
-    const W = innerWidth, H = innerHeight, dpr = window.devicePixelRatio || 1;
+    if (gameView.hidden) return;
+    const W = innerWidth, H = innerHeight;
     const wide = W >= 760 && W >= H * 1.1;
     app.classList.toggle('wide', wide);
-    const hh = head.offsetHeight;
-    const bs = wide ? Math.min(H - hh - 130, W * 0.56, 784) : Math.min(W - 24, (H - hh - 40) * 0.56, 672);
-    u = Math.max(1 / dpr, Math.floor(bs * dpr / N) / dpr);
-    const px = u * N;
-    board.style.width = board.style.height = px + 'px';
-    stage.style.width = px + 'px';
-    board.style.backgroundSize = u + 'px ' + u + 'px';
-    board.style.setProperty('--lw', Math.max(1 / dpr, Math.min(1, u / 3)) + 'px');
+    // board-slot の実際に描画された幅・高さのうち、小さい方に合わせて盤面を正方形にする
+    // (先読みでの予測計算だと、環境によって実際の余白と食い違うことがあったため)
+    const rect = boardSlot.getBoundingClientRect();
+    const size = Math.max(100, Math.floor(Math.min(rect.width, rect.height)));
+    board.style.width = board.style.height = size + 'px';
+    u = size / N;
     renderAll();
   }
   addEventListener('resize', fit);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
 
-  const last = store.get('sqsq-last');
-  loadPuzzle(PUZZLES.some(p => p.id === last) ? last : PUZZLES[0].id);
+  /* ---- boot: fetch external puzzle data, then show the start screen ---- */
+  try {
+    const res = await fetch('./puzzles.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    PUZZLES = await res.json();
+  } catch (e) {
+    $('startStatus').textContent = '盤面データ(puzzles.json)を読み込めませんでした。index.html と同じ場所に置き、サーバー経由(例: GitHub Pages)で開いてください。';
+    return;
+  }
+  $('startStatus').hidden = true;
+  $('modeCards').hidden = false;
+
+  const urlId = new URLSearchParams(location.search).get('p');
+  if (urlId && PUZZLES.some(p => p.id === urlId)) enterGame(urlId, 'free');
 })();
 </script>
 </body>
