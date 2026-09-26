@@ -53,12 +53,11 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;overflow-y:
 .board{width:100cqmin;height:100cqmin}
 .bar{flex:none;display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
 .msg{flex:none}
-/* 高さをコンテンツから独立させる(min/maxではなく固定 height)。
-   トレイの駒サイズは盤面の大きさから決まり、盤面の大きさは .bottom の高さに
-   依存するため、.bottom の高さがトレイの中身(駒の並び方)に応じて変わって
-   しまうと "盤面→駒サイズ→トレイの高さ→盤面" のループで表示が振動してしまう。 */
+/* 中身の量に応じて自然に伸び縮みする(最小/最大の範囲内)。駒サイズの計算が
+   #board ではなく .board-slot の横幅を使うようになったため、ここが中身で
+   伸び縮みしても盤面サイズにループして影響することはない。 */
 .bottom{
-  min-width:0;flex:none;height:clamp(190px,42vh,420px);overflow-y:auto;
+  min-width:0;flex:none;min-height:190px;max-height:42vh;overflow-y:auto;
   overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
 }
 .bottom > .tray, .bottom > .result{min-height:0}
@@ -210,7 +209,7 @@ button:disabled{opacity:.35;pointer-events:none}
     </header>
     <main>
       <section class="stage" id="stage">
-        <div class="board-slot">
+        <div class="board-slot" id="boardSlot">
           <div class="board" id="board"><div class="preview" id="preview" hidden></div></div>
         </div>
         <div class="bar">
@@ -278,7 +277,8 @@ button:disabled{opacity:.35;pointer-events:none}
   const app = $('app'), head = $('head'), board = $('board'), tray = $('tray'),
         preview = $('preview'), result = $('result'),
         freeSheet = $('freeSheet'), randomSheet = $('randomSheet'),
-        startView = $('startView'), gameView = $('gameView');
+        startView = $('startView'), gameView = $('gameView'),
+        boardSlot = $('boardSlot');
 
   let PZ = null, N = 112, u = 3, pieces = [];
   let drag = null, startedAt = null, timerId = null, won = false, resetTimer = null;
@@ -731,17 +731,21 @@ button:disabled{opacity:.35;pointer-events:none}
   function fit() {
     if (gameView.hidden) return;
     // 盤面のサイズ・横並び/縦積みの切り替えは CSS(コンテナクエリ/メディアクエリ)に完全に任せる。
-    // JS は「今実際に描画されている盤面の大きさ」を読み取って、駒のドラッグ計算に使う
-    // 単位(u = 1マスあたりのピクセル数)を求めるだけ。
-    const rect = board.getBoundingClientRect();
+    // JS は駒のドラッグ計算に使う単位(u = 1マスあたりのピクセル数)を求めるだけ。
+    // 注意: #board の実測値(cqmin で高さ側に制約されて縮むことがある)ではなく、
+    // 親の .board-slot 自身の「横幅」を使う。.board-slot の横幅は常に
+    // .stage の横幅と一致し、.bottom(駒トレイ)の高さには一切左右されない
+    // 安定した値。もし #board の実測サイズを使うと「駒サイズ→トレイの折返し
+    // 行数→.bottom の高さ→.stage の残り高さ→盤面サイズ→駒サイズ…」という
+    // 循環が生まれ表示が振動し続けるため、意図的にこちらを使っている。
+    const rect = boardSlot.getBoundingClientRect();
     u = rect.width > 0 ? rect.width / N : 3;
     renderAll();
   }
-  // 盤面のサイズは CSS 側で決まるため、ビューポートのリサイズに限らず、
-  // 盤面要素自体の大きさが変わった瞬間(向きの変化・フォント読み込み後など)を
+  // .board-slot の横幅が変わった瞬間(向きの変化・フォント読み込み後など)を
   // ResizeObserver で直接検知して追従する
   if (window.ResizeObserver) {
-    new ResizeObserver(fit).observe(board);
+    new ResizeObserver(fit).observe(boardSlot);
   } else {
     addEventListener('resize', fit);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
