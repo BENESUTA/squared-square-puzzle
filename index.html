@@ -33,20 +33,34 @@
 html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
 *,*::before,*::after{box-sizing:border-box}
 body{
-  margin:0;min-height:100vh;min-height:100dvh;background:var(--bg);color:var(--ink);
+  margin:0;height:100%;background:var(--bg);color:var(--ink);
   font-family:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
   font-weight:500;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
-  overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  overflow:hidden;
 }
-.app{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;gap:10px;padding:12px;max-width:1240px;margin:0 auto}
-header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.app{height:100%;display:flex;flex-direction:column;gap:10px;padding:12px;max-width:1240px;margin:0 auto}
+header{flex:none;display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
 h1{margin:0;font-size:24px;font-weight:900;letter-spacing:.04em;line-height:1.1}
 .lead{margin:4px 0 0;color:var(--mute);font-size:13px;line-height:1.5;max-width:34em}
 .time{font-variant-numeric:tabular-nums;font-weight:700;font-size:22px;white-space:nowrap}
-main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
-.stage{flex:1;min-height:0;display:flex;flex-direction:column;min-width:0}
-.board-slot{flex:1;min-height:120px;min-width:0;display:flex;justify-content:center;align-items:center}
-.bottom{min-width:0;flex:none;min-height:190px}
+/* main 自体の高さは常に確定値(コンテナクエリが機能するために必須)。
+   中身がどうしても収まらない極端な場合だけ、ここで内部スクロールする */
+main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;overflow-y:auto;scrollbar-gutter:stable;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.stage{flex:1;display:flex;flex-direction:column;min-width:0}
+/* board-slot をサイズコンテナにして、中の正方形(.board)を cqmin で
+   「幅・高さのうち小さい方いっぱい」に自動フィットさせる(JSでの計測は行わない) */
+.board-slot{flex:1 0 120px;min-width:0;container-type:size;display:flex;justify-content:center;align-items:center}
+.board{width:100cqmin;height:100cqmin}
+.bar{flex:none;display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
+.msg{flex:none}
+/* 高さをコンテンツから独立させる(min/maxではなく固定 height)。
+   トレイの駒サイズは盤面の大きさから決まり、盤面の大きさは .bottom の高さに
+   依存するため、.bottom の高さがトレイの中身(駒の並び方)に応じて変わって
+   しまうと "盤面→駒サイズ→トレイの高さ→盤面" のループで表示が振動してしまう。 */
+.bottom{
+  min-width:0;flex:none;height:clamp(190px,42vh,420px);overflow-y:auto;
+  overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+}
 .bottom > .tray, .bottom > .result{min-height:0}
 .board{
   position:relative;background-color:var(--board);
@@ -55,7 +69,6 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
 .gridline{position:absolute;background:var(--grid);pointer-events:none}
 .gridline.v{top:0;bottom:0;width:1px;transform:translateX(-50%)}
 .gridline.h{left:0;right:0;height:1px;transform:translateY(-50%)}
-.bar{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
 .count{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;margin-right:auto;white-space:nowrap}
 button{
   font:inherit;font-weight:700;font-size:14px;border:0;border-radius:8px;
@@ -103,9 +116,13 @@ button:disabled{opacity:.35;pointer-events:none}
 #shareX{background:#000;color:#fff;box-shadow:none}
 #shareLine{background:#06C755;color:#fff;box-shadow:none}
 [hidden]{display:none!important}
-.app.wide main{flex-direction:row;gap:20px}
-.app.wide .stage{flex:1;min-width:0}
-.app.wide .bottom{flex:0 1 320px;min-width:220px;max-width:560px;height:auto;align-self:stretch}
+/* 横並びレイアウト: JSでの幅判定はやめ、CSSのメディアクエリだけで切り替える
+   (十分な横幅があり、かつ横長の画面のときに適用) */
+@media (min-width:760px) and (min-aspect-ratio: 11/10){
+  main{flex-direction:row;gap:20px}
+  .stage{flex:1 1 0;min-width:0}
+  .bottom{flex:0 1 320px;min-width:220px;max-width:560px;max-height:none;height:auto;align-self:stretch}
+}
 #gameView{display:contents}
 
 /* start screen */
@@ -193,7 +210,7 @@ button:disabled{opacity:.35;pointer-events:none}
     </header>
     <main>
       <section class="stage" id="stage">
-        <div class="board-slot" id="boardSlot">
+        <div class="board-slot">
           <div class="board" id="board"><div class="preview" id="preview" hidden></div></div>
         </div>
         <div class="bar">
@@ -259,7 +276,7 @@ button:disabled{opacity:.35;pointer-events:none}
   const PAL = ['#62AEA4','#E2A85A','#DB7A6D','#7F97C8','#A9C47D','#C892B8','#9F9A88'];
   const $ = id => document.getElementById(id);
   const app = $('app'), head = $('head'), board = $('board'), tray = $('tray'),
-        preview = $('preview'), stage = $('stage'), boardSlot = $('boardSlot'), bottomEl = $('bottom'), result = $('result'),
+        preview = $('preview'), result = $('result'),
         freeSheet = $('freeSheet'), randomSheet = $('randomSheet'),
         startView = $('startView'), gameView = $('gameView');
 
@@ -713,27 +730,22 @@ button:disabled{opacity:.35;pointer-events:none}
   /* ---- layout: 1マス = 端末ピクセルの整数倍にそろえ、グリッドと駒の縁を一致させる ---- */
   function fit() {
     if (gameView.hidden) return;
-    const W = innerWidth, H = innerHeight;
-    const wide = W >= 760 && W >= H * 1.1;
-    app.classList.toggle('wide', wide);
-    // まず stage・トレイ側とも既定のCSSに戻した状態で、stage が最大でどこまで使えるかを測る
-    stage.style.flex = '';
-    bottomEl.style.flexBasis = '';
-    const rect = boardSlot.getBoundingClientRect();
-    const size = Math.max(100, Math.floor(Math.min(rect.width, rect.height)));
-    board.style.width = board.style.height = size + 'px';
-    // 横並び(wide)のときは、盤面の実際のサイズに stage の幅を合わせ、
-    // 余った横幅は隣のトレイ側に回す(stage だけ無駄に広くならないように)
-    if (wide) {
-      stage.style.flex = '0 0 ' + size + 'px';
-      const extra = Math.max(0, rect.width - size);
-      bottomEl.style.flexBasis = Math.min(560, 320 + extra) + 'px';
-    }
-    u = size / N;
+    // 盤面のサイズ・横並び/縦積みの切り替えは CSS(コンテナクエリ/メディアクエリ)に完全に任せる。
+    // JS は「今実際に描画されている盤面の大きさ」を読み取って、駒のドラッグ計算に使う
+    // 単位(u = 1マスあたりのピクセル数)を求めるだけ。
+    const rect = board.getBoundingClientRect();
+    u = rect.width > 0 ? rect.width / N : 3;
     renderAll();
   }
-  addEventListener('resize', fit);
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  // 盤面のサイズは CSS 側で決まるため、ビューポートのリサイズに限らず、
+  // 盤面要素自体の大きさが変わった瞬間(向きの変化・フォント読み込み後など)を
+  // ResizeObserver で直接検知して追従する
+  if (window.ResizeObserver) {
+    new ResizeObserver(fit).observe(board);
+  } else {
+    addEventListener('resize', fit);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  }
 
   /* ---- boot: fetch external puzzle data, then show the start screen ---- */
   try {
