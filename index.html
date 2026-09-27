@@ -190,10 +190,10 @@ button:disabled{opacity:.35;pointer-events:none}
       </div>
       <div class="time" id="time">0:00</div>
     </header>
-    <main>
+    <main id="mainEl">
       <section class="stage" id="stage">
         <div class="board" id="board"><div class="preview" id="preview" hidden></div></div>
-        <div class="bar">
+        <div class="bar" id="bar">
           <span class="count" id="count" aria-live="polite">0 / 0</span>
           <button class="quiet" id="undoBtn" type="button">一手戻す</button>
           <button class="quiet" id="redoBtn" type="button">やり直す</button>
@@ -257,7 +257,7 @@ button:disabled{opacity:.35;pointer-events:none}
         preview = $('preview'), result = $('result'),
         freeSheet = $('freeSheet'), randomSheet = $('randomSheet'),
         startView = $('startView'), gameView = $('gameView'),
-        stage = $('stage');
+        stage = $('stage'), bar = $('bar'), msgEl = $('msg'), mainEl = $('mainEl');
 
   let PZ = null, N = 112, u = 3, pieces = [];
   let drag = null, startedAt = null, timerId = null, won = false, resetTimer = null;
@@ -696,13 +696,46 @@ button:disabled{opacity:.35;pointer-events:none}
     const wide = W >= 760 && W >= H * 1.1;
     app.classList.toggle('wide', wide);
     const hh = head.offsetHeight;
-    const bs = wide ? Math.min(H - hh - 130, W * 0.56, 784) : Math.min(W - 24, (H - hh - 40) * 0.56, 672);
-    u = Math.max(1 / dpr, Math.floor(bs * dpr / N) / dpr);
-    const px = u * N;
-    board.style.width = board.style.height = px + 'px';
-    stage.style.width = px + 'px';
-    board.style.backgroundSize = u + 'px ' + u + 'px';
-    board.style.setProperty('--lw', Math.max(1 / dpr, Math.min(1, u / 3)) + 'px');
+
+    function applySize(bs) {
+      u = Math.max(1 / dpr, Math.floor(bs * dpr / N) / dpr);
+      const px = u * N;
+      board.style.width = board.style.height = px + 'px';
+      stage.style.width = px + 'px';
+      board.style.backgroundSize = u + 'px ' + u + 'px';
+      board.style.setProperty('--lw', Math.max(1 / dpr, Math.min(1, u / 3)) + 'px');
+    }
+
+    if (wide) {
+      // 横向き(wide)では、盤面の高さ予算を「ボタン行・メッセージ欄の実際の
+      // 描画結果」から求める。固定の当てずっぽう値だと、実機でボタンが
+      // 2行に折り返した時にはみ出したり、逆に余白が無駄になったりするため。
+      // stage の横幅で bar の折り返し行数が変わるので、まず前回の幅のまま
+      // 実測 → 仮のサイズを当てる → 折り返しが変わっていたら測り直して
+      // 1回だけ補正する、という2段階にしている(無限ループにはならない)。
+      // ただし極端に横幅が狭い端末では「盤面が狭い→ボタンが何段にも折り返す
+      // →さらに盤面が狭くなる」という縮小スパイラルが起きうるため、
+      // 予算計算に使う高さには上限を設けて過剰反応を防いでいる。
+      const mainH = mainEl.getBoundingClientRect().height || (H - hh - 20);
+      const gapAndPad = 12 + 14; // main の gap + bar の margin-top
+      const measure = () => ({
+        bar: Math.min(bar.getBoundingClientRect().height || 40, 100),
+        msg: Math.min(msgEl.getBoundingClientRect().height || 20, 40)
+      });
+      let m = measure();
+      const bs1 = Math.min(mainH - m.bar - m.msg - gapAndPad, W * 0.56, 784);
+      applySize(bs1);
+      const m2 = measure();
+      if (Math.abs(m2.bar - m.bar) > 1 || Math.abs(m2.msg - m.msg) > 1) {
+        // 折り返し方が変わっていたら測り直すが、その結果「前より縮む」場合は
+        // 採用しない(採用すると縮小スパイラルになるため)。前より伸ばせる
+        // 場合だけ適用する。
+        const bs2 = Math.min(mainH - m2.bar - m2.msg - gapAndPad, W * 0.56, 784);
+        if (bs2 > bs1) applySize(bs2);
+      }
+    } else {
+      applySize(Math.min(W - 24, (H - hh - 40) * 0.56, 672));
+    }
     renderAll();
   }
   addEventListener('resize', fit);
